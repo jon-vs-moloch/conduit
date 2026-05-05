@@ -1,0 +1,108 @@
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { processListenTurn, type ListenSession } from '../../src/runtime/listen-loop.js';
+import { FakeTransport } from '../../src/transports/fake-transport.js';
+
+describe('processListenTurn', () => {
+  let tempRoot: string;
+  let projectRoot: string;
+
+  beforeEach(async () => {
+    tempRoot = await mkdtemp(path.join(os.tmpdir(), 'conduit-listen-loop-'));
+    projectRoot = path.join(tempRoot, 'project');
+    process.env.CONDUIT_STATE_DIR = path.join(tempRoot, 'state');
+    await import('node:fs/promises').then(({ mkdir }) => mkdir(projectRoot, { recursive: true }));
+    await writeFile(path.join(projectRoot, 'README.md'), 'hello listener\n', 'utf8');
+  });
+
+  afterEach(async () => {
+    delete process.env.CONDUIT_STATE_DIR;
+    await rm(tempRoot, { recursive: true, force: true });
+  });
+
+  it('keeps listening semantics by clearing session on final and allowing a later new call', async () => {
+    const transport = new FakeTransport([]);
+    let session: ListenSession | null = null;
+
+    const first = await processListenTurn({
+      assistantTurn: {
+        text: [
+          '```conduit-call',
+          JSON.stringify({
+            type: 'actions',
+            actions: [
+              {
+                id: 'read_readme',
+                tool: 'file.read',
+                args: { path: 'README.md' },
+                reason: 'Need context.',
+                risk: 'low'
+              }
+            ]
+          }),
+          '```'
+        ].join('\n'),
+        timestamp: '2026-05-04T00:00:00.000Z'
+      },
+      projectRoot,
+      transport,
+      session
+    });
+
+    expect(first.status).toBe('actions');
+    expect(first.session).not.toBeNull();
+    expect(transport.sentMessages[0]).toContain('hello listener');
+    session = first.session;
+
+    const final = await processListenTurn({
+      assistantTurn: {
+        text: [
+          '```conduit-final',
+          JSON.stringify({ status: 'complete', summary: 'Done.' }),
+          '```'
+        ].join('\n'),
+        timestamp: '2026-05-04T00:00:01.000Z'
+      },
+      projectRoot,
+      transport,
+      session
+    });
+
+    expect(final.status).toBe('final');
+    expect(final.session).toBeNull();
+    expect(session).not.toBeNull();
+    await expect(readFile(path.join(session!.runDir, 'final.md'), 'utf8')).resolves.toBe('Done.');
+
+    const later = await processListenTurn({
+      assistantTurn: {
+        text: [
+          '```conduit-call',
+          JSON.stringify({
+            type: 'actions',
+            actions: [
+              {
+                id: 'read_again',
+                tool: 'file.read',
+                args: { path: 'README.md' },
+                reason: 'Need context again.',
+                risk: 'low'
+              }
+            ]
+          }),
+          '```'
+        ].join('\n'),
+        timestamp: '2026-05-04T00:00:02.000Z'
+      },
+      projectRoot,
+      transport,
+      session: final.session
+    });
+
+    expect(later.status).toBe('actions');
+    expect(later.session).not.toBeNull();
+    expect(later.session?.runId).not.toBe(session?.runId);
+    expect(transport.sentMessages[1]).toContain('hello listener');
+  });
+});

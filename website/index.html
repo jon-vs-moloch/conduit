@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Conduit</title>
+  <meta name="description" content="Conduit is a local consent layer for clipboard and agent-loop commands.">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span>Conduit</a>
+    <nav class="nav" aria-label="Main">
+      <a aria-current="page" href="index.html">Home</a>
+      <a href="download.html">Download</a>
+      <a href="about.html">About</a>
+      <a href="api.html">API</a>
+    </nav>
+  </header>
+  <main>
+    <section class="hero">
+      <div>
+        <h1>Copy the request. Only the request.</h1>
+        <p class="lead">Conduit is a local runner for explicit, inspectable requests from chatbots, docs, and paired sessions. It gives clipboard workflows a consent boundary that is less cursed than pasting arbitrary shell into a terminal.</p>
+        <div class="actions">
+          <a class="button primary" href="download.html">Get Conduit</a>
+          <a class="button" href="api.html">Read the API</a>
+        </div>
+      </div>
+      <img class="preview" src="assets/conduit-preview.svg" alt="Preview of the Conduit local control app">
+    </section>
+    <section class="band">
+      <div class="section split">
+        <div>
+          <h2>Compliance mode by default.</h2>
+          <p>Clipboard execution uses exact-envelope parsing. Prose, READMEs, issue comments, webpages, and chat replies that merely contain a Conduit block are text, not consent.</p>
+        </div>
+        <div class="grid">
+          <article class="card">
+            <h3>Exact envelopes</h3>
+            <p>The daemon executes only a standalone Conduit envelope after trimming leading and trailing whitespace.</p>
+          </article>
+          <article class="card">
+            <h3>Sessions and nonces</h3>
+            <p>Trusted execution requires a paired local session and a one-shot nonce bound to that session.</p>
+          </article>
+          <article class="card">
+            <h3>Policy-routed tools</h3>
+            <p>Reads, writes, patches, git inspection, and shell commands flow through local profiles and confirmations.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+    <section class="section">
+      <h2>The useful unsafe thing, boxed up.</h2>
+      <p class="lead">Conduit keeps the agent loop available for elevated authenticated sessions, while the default clipboard gesture stays narrow: copy the Conduit request, and only the Conduit request.</p>
+      <pre class="code">npm run conduit -- session create --label "ChatGPT" --root /path/to/project
+npm run conduit -- daemon start --interval-ms 1000
+npm run app</pre>
+    </section>
+  </main>
+  <footer class="footer">Conduit is local-first v0 software. Treat every capability boundary as load-bearing.</footer>
+</body>
+</html>

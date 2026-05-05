@@ -1,0 +1,544 @@
+import http from 'node:http';
+import { execFile } from 'node:child_process';
+import { readFile, readdir } from 'node:fs/promises';
+import path from 'node:path';
+import { ClipboardWatcher } from '../daemon/clipboard-watcher.js';
+import { MacClipboardIO, type ClipboardIO } from '../daemon/clipboard-io.js';
+import { getRunsRoot, getStateRoot } from '../state/paths.js';
+import { createSession, listSessions, revokeSession } from '../sessions/session-store.js';
+import { isPermissionProfileName } from '../sessions/profiles.js';
+
+export interface ControlPanelOptions {
+  host?: string;
+  port?: number;
+  open?: boolean;
+  clipboard?: ClipboardIO;
+}
+
+export interface ControlPanelHandle {
+  server: http.Server;
+  url: string;
+  close(): Promise<void>;
+}
+
+const DEFAULT_HOST = '127.0.0.1';
+const DEFAULT_PORT = 47831;
+
+export async function startControlPanel(options: ControlPanelOptions = {}): Promise<ControlPanelHandle> {
+  const host = options.host ?? DEFAULT_HOST;
+  const port = options.port ?? DEFAULT_PORT;
+  const server = createControlPanelServer(options);
+
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, host, () => resolve());
+  });
+
+  const address = server.address();
+  const actualPort = typeof address === 'object' && address ? address.port : port;
+  const url = `http://${host}:${actualPort}`;
+  if (options.open) {
+    openBrowser(url).catch((error) => {
+      console.error(`[Conduit app] Failed to open browser: ${error instanceof Error ? error.message : String(error)}`);
+    });
+  }
+
+  return {
+    server,
+    url,
+    close: () => new Promise((resolve) => server.close(() => resolve()))
+  };
+}
+
+export function createControlPanelServer(options: ControlPanelOptions = {}): http.Server {
+  const clipboard = options.clipboard ?? new MacClipboardIO();
+  return http.createServer((req, res) => {
+    void handleRequest(req, res, clipboard);
+  });
+}
+
+async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse, clipboard: ClipboardIO): Promise<void> {
+  const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+  try {
+    if (req.method === 'GET' && url.pathname === '/') {
+      sendHtml(res, renderAppHtml());
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/app.js') {
+      sendJs(res, renderAppJs());
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/status') {
+      sendJson(res, 200, {
+        status: 'ok',
+        mode: 'Compliance',
+        stateRoot: getStateRoot(),
+        exactEnvelopeParsing: true,
+        embeddedBlockParsing: false,
+        clipboardWatcher: 'available'
+      });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/sessions') {
+      sendJson(res, 200, { sessions: await listSessions() });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/sessions') {
+      const body = await readJsonBody(req) as {
+        label?: unknown;
+        root?: unknown;
+        profile?: unknown;
+        transport?: unknown;
+      };
+      const label = typeof body.label === 'string' && body.label.trim() ? body.label.trim() : 'App session';
+      const root = typeof body.root === 'string' && body.root.trim() ? body.root.trim() : process.cwd();
+      const profile = typeof body.profile === 'string' && isPermissionProfileName(body.profile) ? body.profile : 'read-only';
+      const transport = body.transport === 'extension' || body.transport === 'browser-yolo' || body.transport === 'api'
+        ? body.transport
+        : 'clipboard';
+      const session = await createSession({
+        label,
+        permissionProfile: profile,
+        allowedRoots: [root],
+        transport
+      });
+      sendJson(res, 201, { session, starterEnvelope: createStarterEnvelope(session.sessionId, session.currentNonce) });
+      return;
+    }
+
+    const revokeMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/revoke$/);
+    if (req.method === 'POST' && revokeMatch?.[1]) {
+      sendJson(res, 200, { session: await revokeSession(decodeURIComponent(revokeMatch[1])) });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/runs') {
+      sendJson(res, 200, { runs: await listRuns() });
+      return;
+    }
+
+    const runResultMatch = url.pathname.match(/^\/api\/runs\/([^/]+)\/result$/);
+    if (req.method === 'GET' && runResultMatch?.[1]) {
+      const runId = decodeURIComponent(runResultMatch[1]);
+      const result = await readOptionalFile(path.join(getRunsRoot(), runId, 'result.txt'))
+        ?? await readOptionalFile(path.join(getRunsRoot(), runId, 'final.md'))
+        ?? '';
+      sendJson(res, 200, { runId, result });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/clipboard/check') {
+      const watcher = new ClipboardWatcher({ clipboard });
+      sendJson(res, 200, await watcher.checkOnce());
+      return;
+    }
+
+    sendJson(res, 404, { error: 'Not found' });
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+async function listRuns(): Promise<Array<Record<string, unknown>>> {
+  const runsRoot = getRunsRoot();
+  let runIds: string[];
+  try {
+    runIds = await readdir(runsRoot);
+  } catch {
+    return [];
+  }
+
+  const runs = await Promise.all(runIds.sort().reverse().slice(0, 50).map(async (runId) => {
+    const runDir = path.join(runsRoot, runId);
+    const metadata = await readJsonFile(path.join(runDir, 'metadata.json'));
+    const final = await readJsonFile(path.join(runDir, 'final.json'));
+    const resultText = await readOptionalFile(path.join(runDir, 'result.txt'));
+    return {
+      runId,
+      mode: metadata?.mode ?? 'agent-loop',
+      projectRoot: metadata?.projectRoot,
+      startedAt: metadata?.startedAt,
+      status: final?.status ?? (resultText ? 'request' : 'unknown'),
+      summary: final?.summary,
+      hasResult: Boolean(resultText)
+    };
+  }));
+  return runs;
+}
+
+async function readJsonFile(filePath: string): Promise<Record<string, unknown> | null> {
+  const text = await readOptionalFile(filePath);
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return typeof parsed === 'object' && parsed !== null ? parsed as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readOptionalFile(filePath: string): Promise<string | null> {
+  try {
+    return await readFile(filePath, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+function createStarterEnvelope(sessionId: string, nonce: string): Record<string, unknown> {
+  return {
+    schema: 'conduit.request.v1',
+    source: { kind: 'clipboard', trust: 'untrusted' },
+    permissions: [{ kind: 'filesystem', scope: 'project', access: 'read' }],
+    sessionId,
+    nonce,
+    actions: [
+      {
+        id: 'list_project',
+        tool: 'file.list',
+        args: { path: '.' },
+        reason: 'List the project root.',
+        risk: 'low'
+      }
+    ]
+  };
+}
+
+function renderAppHtml(): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Conduit Control</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f8;
+      --panel: #ffffff;
+      --panel-soft: #f0f3f5;
+      --text: #172026;
+      --muted: #66737c;
+      --border: #dce2e6;
+      --accent: #0f766e;
+      --accent-strong: #0b5f59;
+      --danger: #b42318;
+      --shadow: 0 12px 30px rgba(23, 32, 38, 0.08);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    button, input, select { font: inherit; }
+    .shell { min-height: 100vh; display: grid; grid-template-columns: 240px 1fr; }
+    aside { border-right: 1px solid var(--border); background: #fbfcfc; padding: 24px 18px; }
+    .brand { font-size: 22px; font-weight: 760; letter-spacing: 0; margin-bottom: 6px; }
+    .subtle { color: var(--muted); font-size: 13px; line-height: 1.45; }
+    nav { margin-top: 28px; display: grid; gap: 8px; }
+    nav button { text-align: left; border: 0; background: transparent; padding: 10px 12px; border-radius: 7px; color: var(--text); cursor: pointer; }
+    nav button.active { background: var(--panel-soft); color: var(--accent-strong); font-weight: 650; }
+    main { padding: 28px; max-width: 1180px; width: 100%; }
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 22px; }
+    h1 { font-size: 28px; line-height: 1.15; margin: 0 0 7px; letter-spacing: 0; }
+    h2 { font-size: 17px; margin: 0; letter-spacing: 0; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn { border: 1px solid var(--border); background: var(--panel); color: var(--text); padding: 9px 12px; border-radius: 7px; cursor: pointer; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.danger { color: var(--danger); }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+    .metric, .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); }
+    .metric { padding: 16px; }
+    .metric b { display: block; font-size: 24px; margin-bottom: 4px; }
+    .panel { margin-bottom: 16px; overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    .panel-body { padding: 14px 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; border-bottom: 1px solid var(--border); padding: 11px 8px; font-size: 13px; vertical-align: top; }
+    th { color: var(--muted); font-weight: 650; }
+    tr:last-child td { border-bottom: 0; }
+    code, pre { font-family: "SFMono-Regular", Consolas, monospace; }
+    pre { white-space: pre-wrap; overflow: auto; margin: 0; background: #101820; color: #d8efe9; border-radius: 8px; padding: 12px; font-size: 12px; line-height: 1.45; }
+    form { display: grid; grid-template-columns: 1fr 1fr 180px auto; gap: 10px; align-items: end; }
+    label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 650; }
+    input, select { border: 1px solid var(--border); border-radius: 7px; padding: 9px 10px; background: #fff; color: var(--text); min-width: 0; }
+    .empty { color: var(--muted); padding: 18px 4px; }
+    .status-line { font-size: 13px; color: var(--muted); margin-top: 10px; min-height: 19px; }
+    .hidden { display: none; }
+    @media (max-width: 820px) {
+      .shell { grid-template-columns: 1fr; }
+      aside { border-right: 0; border-bottom: 1px solid var(--border); }
+      nav { grid-template-columns: repeat(3, 1fr); }
+      main { padding: 20px; }
+      header { display: block; }
+      .toolbar { margin-top: 12px; }
+      .grid { grid-template-columns: 1fr; }
+      form { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand">Conduit</div>
+      <div class="subtle">Local capability runner control plane</div>
+      <nav>
+        <button class="active" data-view="overview">Overview</button>
+        <button data-view="sessions">Sessions</button>
+        <button data-view="runs">Runs</button>
+      </nav>
+    </aside>
+    <main>
+      <header>
+        <div>
+          <h1 id="title">Overview</h1>
+          <div class="subtle" id="subtitle">Compliance mode, exact clipboard envelopes only.</div>
+        </div>
+        <div class="toolbar">
+          <button class="btn" id="refresh">Refresh</button>
+          <button class="btn primary" id="checkClipboard">Check Clipboard Once</button>
+        </div>
+      </header>
+      <section id="overviewView">
+        <div class="grid">
+          <div class="metric"><b id="sessionCount">0</b><span class="subtle">sessions</span></div>
+          <div class="metric"><b id="runCount">0</b><span class="subtle">recent runs</span></div>
+          <div class="metric"><b id="mode">Compliance</b><span class="subtle">active mode</span></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Runtime</h2></div>
+          <div class="panel-body"><pre id="statusJson">{}</pre></div>
+        </div>
+      </section>
+      <section id="sessionsView" class="hidden">
+        <div class="panel">
+          <div class="panel-head"><h2>Create Session</h2></div>
+          <div class="panel-body">
+            <form id="createSession">
+              <label>Label<input name="label" value="Clipboard session"></label>
+              <label>Root<input name="root" value="${escapeHtml(process.cwd())}"></label>
+              <label>Profile<select name="profile"><option>read-only</option><option>edit-with-confirmation</option><option>shell-manual</option></select></label>
+              <button class="btn primary" type="submit">Create</button>
+            </form>
+            <div class="status-line" id="sessionStatus"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Sessions</h2></div>
+          <div class="panel-body" id="sessionsTable"></div>
+        </div>
+        <div class="panel hidden" id="starterPanel">
+          <div class="panel-head"><h2>Starter Envelope</h2></div>
+          <div class="panel-body"><pre id="starterEnvelope"></pre></div>
+        </div>
+      </section>
+      <section id="runsView" class="hidden">
+        <div class="panel">
+          <div class="panel-head"><h2>Recent Runs</h2></div>
+          <div class="panel-body" id="runsTable"></div>
+        </div>
+        <div class="panel hidden" id="resultPanel">
+          <div class="panel-head"><h2>Result</h2></div>
+          <div class="panel-body"><pre id="runResult"></pre></div>
+        </div>
+      </section>
+      <div class="status-line" id="appStatus"></div>
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>`;
+}
+
+function renderAppJs(): string {
+  return `
+const state = { status: null, sessions: [], runs: [], view: 'overview' };
+const $ = (id) => document.getElementById(id);
+
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+function setStatus(text) { $('appStatus').textContent = text || ''; }
+
+async function refresh() {
+  const [status, sessions, runs] = await Promise.all([
+    api('/api/status'),
+    api('/api/sessions'),
+    api('/api/runs')
+  ]);
+  state.status = status;
+  state.sessions = sessions.sessions;
+  state.runs = runs.runs;
+  render();
+}
+
+function render() {
+  $('sessionCount').textContent = state.sessions.length;
+  $('runCount').textContent = state.runs.length;
+  $('mode').textContent = state.status?.mode || 'Compliance';
+  $('statusJson').textContent = JSON.stringify(state.status, null, 2);
+  renderSessions();
+  renderRuns();
+}
+
+function renderSessions() {
+  if (state.sessions.length === 0) {
+    $('sessionsTable').innerHTML = '<div class="empty">No sessions yet.</div>';
+    return;
+  }
+  $('sessionsTable').innerHTML = '<table><thead><tr><th>Session</th><th>Profile</th><th>Roots</th><th>Nonce</th><th></th></tr></thead><tbody>' +
+    state.sessions.map((session) => '<tr>' +
+      '<td><strong>' + escapeHtml(session.label) + '</strong><br><span class="subtle">' + escapeHtml(session.sessionId) + ' · ' + escapeHtml(session.state) + '</span></td>' +
+      '<td>' + escapeHtml(session.permissionProfile) + '</td>' +
+      '<td>' + escapeHtml((session.allowedRoots || []).join(', ')) + '</td>' +
+      '<td><code>' + escapeHtml(session.currentNonce) + '</code></td>' +
+      '<td><button class="btn danger" data-revoke="' + encodeURIComponent(session.sessionId) + '">Revoke</button></td>' +
+    '</tr>').join('') + '</tbody></table>';
+}
+
+function renderRuns() {
+  if (state.runs.length === 0) {
+    $('runsTable').innerHTML = '<div class="empty">No runs yet.</div>';
+    return;
+  }
+  $('runsTable').innerHTML = '<table><thead><tr><th>Run</th><th>Status</th><th>Project</th><th>Started</th><th></th></tr></thead><tbody>' +
+    state.runs.map((run) => '<tr>' +
+      '<td><strong>' + escapeHtml(run.runId) + '</strong><br><span class="subtle">' + escapeHtml(run.mode || '') + '</span></td>' +
+      '<td>' + escapeHtml(run.status || 'unknown') + '</td>' +
+      '<td>' + escapeHtml(run.projectRoot || '') + '</td>' +
+      '<td>' + escapeHtml(run.startedAt || '') + '</td>' +
+      '<td><button class="btn" data-result="' + encodeURIComponent(run.runId) + '">View</button></td>' +
+    '</tr>').join('') + '</tbody></table>';
+}
+
+function setView(view) {
+  state.view = view;
+  for (const id of ['overview', 'sessions', 'runs']) {
+    $(id + 'View').classList.toggle('hidden', id !== view);
+    document.querySelector('[data-view="' + id + '"]').classList.toggle('active', id === view);
+  }
+  $('title').textContent = view[0].toUpperCase() + view.slice(1);
+}
+
+document.addEventListener('click', async (event) => {
+  const view = event.target.dataset?.view;
+  if (view) setView(view);
+
+  const revoke = event.target.dataset?.revoke;
+  if (revoke) {
+    await api('/api/sessions/' + revoke + '/revoke', { method: 'POST' });
+    setStatus('Session revoked.');
+    await refresh();
+  }
+
+  const result = event.target.dataset?.result;
+  if (result) {
+    const data = await api('/api/runs/' + result + '/result');
+    $('runResult').textContent = data.result || '(no result text)';
+    $('resultPanel').classList.remove('hidden');
+  }
+});
+
+$('refresh').addEventListener('click', () => refresh().catch((error) => setStatus(error.message)));
+$('checkClipboard').addEventListener('click', async () => {
+  setStatus('Checking clipboard...');
+  const result = await api('/api/clipboard/check', { method: 'POST' });
+  setStatus('Clipboard check: ' + result.status);
+  await refresh();
+});
+
+$('createSession').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const data = await api('/api/sessions', {
+    method: 'POST',
+    body: JSON.stringify({
+      label: form.get('label'),
+      root: form.get('root'),
+      profile: form.get('profile')
+    })
+  });
+  $('sessionStatus').textContent = 'Created ' + data.session.sessionId;
+  $('starterEnvelope').textContent = '\`\`\`conduit\\n' + JSON.stringify(data.starterEnvelope, null, 2) + '\\n\`\`\`';
+  $('starterPanel').classList.remove('hidden');
+  await refresh();
+});
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+}
+
+refresh().catch((error) => setStatus(error.message));
+`;
+}
+
+function sendHtml(res: http.ServerResponse, html: string): void {
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(html);
+}
+
+function sendJs(res: http.ServerResponse, js: string): void {
+  res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+  res.end(js);
+}
+
+function sendJson(res: http.ServerResponse, statusCode: number, value: unknown): void {
+  res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(value));
+}
+
+function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk.toString();
+      if (body.length > 1_000_000) {
+        reject(new Error('Body too large'));
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      if (!body.trim()) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(body));
+      } catch {
+        reject(new Error('Invalid JSON'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function openBrowser(url: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = execFile('open', [url], (error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+    child.on('error', reject);
+  });
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char] ?? char));
+}

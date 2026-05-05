@@ -1,0 +1,3 @@
+[actions.Run]
+command = "./script/build_and_run.sh"
+description = "Build and launch the Conduit macOS menu-bar app."

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Download Conduit</title>
+  <meta name="description" content="Install and run the Conduit local daemon and control app.">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span>Conduit</a>
+    <nav class="nav" aria-label="Main">
+      <a href="index.html">Home</a>
+      <a aria-current="page" href="download.html">Download</a>
+      <a href="about.html">About</a>
+      <a href="api.html">API</a>
+    </nav>
+  </header>
+  <main class="page">
+    <h1>Download Conduit</h1>
+    <p class="lead">Conduit has a local macOS menu-bar preview now. The signed release artifact is still the next distribution gate, but the app wrapper can already supervise the control app and clipboard daemon from a source checkout.</p>
+    <pre class="code">npm install
+npm run build
+npm run macos:build
+open dist/macos/Conduit.app
+npm run conduit -- session create --label "Clipboard" --root "$PWD"
+npm run conduit -- daemon start --interval-ms 1000
+npm run app</pre>
+    <div class="callout">
+      <p>Do not enable embedded-block parsing for normal clipboard use. Compliance mode should remain exact-envelope-only unless you are deliberately testing an unsafe profile.</p>
+    </div>
+    <section class="grid" aria-label="Download status">
+      <article class="card">
+        <h3>Current channel</h3>
+        <p>Source checkout. The CLI, daemon, local control app, and macOS menu-bar preview are available now.</p>
+      </article>
+      <article class="card">
+        <h3>Next channel</h3>
+        <p>Signed and notarized macOS menu-bar package with real release artifacts and production update metadata.</p>
+      </article>
+      <article class="card">
+        <h3>State directory</h3>
+        <p>Runtime state lives in <code>~/.conduit</code>, or <code>CONDUIT_STATE_DIR</code> for tests and isolated runs.</p>
+      </article>
+    </section>
+  </main>
+  <footer class="footer">Conduit v0 is local-first and intentionally conservative by default.</footer>
+</body>
+</html>

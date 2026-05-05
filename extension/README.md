@@ -1,0 +1,81 @@
+# Conduit Bridge Extension
+
+This is the foundational boilerplate for the Conduit Chrome Extension, built to tether the user's organic, already-authenticated ChatGPT web interface to the local Conduit CLI runtime.
+
+The extension does not bypass auth, solve verification challenges, extract cookies, or disguise automation. The user signs in normally, then explicitly enables the extension bridge.
+
+## Current Capabilities (Spike Phase)
+- Injects a content script into `https://chatgpt.com/*`.
+- Observes visible assistant messages for `conduit-call` and `conduit-final` code blocks.
+- Keeps legacy `<<<ACTIONS_JSON` and `<<<FINAL_JSON` support for compatibility.
+- De-duplicates protocol blocks across DOM updates.
+- Passes the payload from the restricted content script to the unrestricted background service worker.
+- Forwards the payload via `POST` to `http://127.0.0.1:3333/api/conduit-call`.
+- Polls `http://127.0.0.1:3333/api/conduit-outbound` for harness messages to send back into ChatGPT.
+
+## How to Install (Unpacked)
+1. Open Google Chrome or Brave.
+2. Navigate to `chrome://extensions/`.
+3. Enable **Developer mode** (toggle in the top right).
+4. Click **Load unpacked**.
+5. Select this `extension` directory (`/Users/jon/Projects/conduit/extension`).
+6. The extension is now active!
+
+## How to Run
+
+Start a Conduit run with extension transport:
+
+```txt
+npm run conduit -- run --transport extension --project fixtures/fake-project --task "Read README.md and summarize it."
+```
+
+Then open an authenticated ChatGPT tab with the extension enabled.
+
+For the persistent v0 listener, prefer:
+
+```txt
+npm run conduit -- listen --project fixtures/fake-project
+```
+
+Lifecycle:
+
+- `run --transport extension` sends an initial task and exits on `conduit-final`.
+- `listen` keeps the bridge open.
+- In `listen` mode, a `conduit-call` starts or continues a logged session.
+- In `listen` mode, a `conduit-final` closes the current session but leaves the listener active.
+- A later `conduit-call` starts a new session.
+
+## Current Hardening Notes
+
+- The content script uses both `MutationObserver` and periodic scans.
+- The runtime queues inbound protocol blocks even if they arrive before `waitForAssistantTurn`.
+- The runtime queues outbound messages until the extension polls.
+- Outbound messages include a visible `Conduit transport id: out-N` marker.
+- The extension only reports `sent` after it observes the `transportId` committed in a user message.
+- The content script retries browser sends through composer stabilization, upload settling, send-button readiness, click, and commit verification.
+- Retry dedupe is based on the visible `transportId`, so ambiguous retries should not duplicate already-sent messages.
+- Persistent `listen` mode stays active after `conduit-final`.
+- `/health` is available on the local bridge.
+- Send results are reported to `/api/conduit-send-result` with `transportId`, `attempts`, `messageChars`, and optional `error`.
+- `file.read` supports `offset` plus `nextOffset` metadata so large files can be read in continuation slices.
+
+Useful health check:
+
+```txt
+curl http://127.0.0.1:3333/health
+```
+
+Interpretation:
+
+- `outboundQueued > 0`: the extension has not picked up the next harness message yet.
+- `deliveredOutboundCount` increased but `lastSendResult` is absent: the content script likely failed before reporting; reload the extension and inspect the tab console.
+- `lastSendResult.status === "failed"`: the runtime should stop or retry based on the reported browser send failure instead of waiting for ChatGPT.
+- `lastSendResult.status === "sent"`: the runtime has confirmed the outbound message was committed to the conversation.
+
+## Next Steps for Development
+
+1. Add extension UI/popup status.
+2. Detect discarded/throttled/unavailable tabs.
+3. Add pairing token support for the local bridge.
+4. Make composer insertion more robust across ChatGPT UI changes.
+5. Add static DOM fixture tests for content-script extraction helpers.

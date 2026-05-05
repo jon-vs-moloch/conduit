@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Conduit Bridge",
+  "version": "0.1.0",
+  "description": "Bridge for ChatGPT to Conduit local runtime",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:3333/*",
+    "http://localhost:3333/*",
+    "https://chatgpt.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://chatgpt.com/*"],
+      "js": ["content.js"]
+    }
+  ]
+}

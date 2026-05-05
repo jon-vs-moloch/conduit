@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>About Conduit</title>
+  <meta name="description" content="Why Conduit exists and how it handles local capability execution.">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span>Conduit</a>
+    <nav class="nav" aria-label="Main">
+      <a href="index.html">Home</a>
+      <a href="download.html">Download</a>
+      <a aria-current="page" href="about.html">About</a>
+      <a href="api.html">API</a>
+    </nav>
+  </header>
+  <main class="page">
+    <h1>About Conduit</h1>
+    <p class="lead">Conduit exists because chatbot commands are already a real workflow. The question is whether the local bridge is explicit, inspectable, and policy-routed, or whether users keep pasting mystery text into terminals.</p>
+    <section class="grid">
+      <article class="card">
+        <h3>Local first</h3>
+        <p>Conduit keeps execution on the user’s machine. Sessions, nonces, runs, policy decisions, and tool results are local state.</p>
+      </article>
+      <article class="card">
+        <h3>Consent shaped</h3>
+        <p>A standalone envelope is a deliberate gesture. A paragraph containing a hidden block is not.</p>
+      </article>
+      <article class="card">
+        <h3>Agent-loop aware</h3>
+        <p>The embedded parser still exists for authenticated elevated transports, where the user has opted into an agent loop.</p>
+      </article>
+    </section>
+    <section class="section">
+      <h2>What v0 is proving</h2>
+      <p>Conduit v0 is proving the narrow loop: create a trusted session, copy an exact request envelope, execute locally through policy, rotate the nonce, and return a result block that can be pasted back into a chat.</p>
+    </section>
+  </main>
+  <footer class="footer">The default posture is boring on purpose. Unsafe power-user modes should look unsafe.</footer>
+</body>
+</html>

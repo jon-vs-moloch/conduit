@@ -1,0 +1,9 @@
+export const ACTIONS_START = '<<<ACTIONS_JSON';
+export const ACTIONS_END = 'ACTIONS_JSON>>>';
+export const TOOL_RESULTS_START = '<<<TOOL_RESULTS_JSON';
+export const TOOL_RESULTS_END = 'TOOL_RESULTS_JSON>>>';
+export const CONDUIT_RESULTS_START = '<<<CONDUIT_RESULTS_JSON';
+export const CONDUIT_RESULTS_END = 'CONDUIT_RESULTS_JSON>>>';
+export const FINAL_START = '<<<FINAL_JSON';
+export const FINAL_END = 'FINAL_JSON>>>';
+export const END_TURN = '<<<END_TURN>>>';

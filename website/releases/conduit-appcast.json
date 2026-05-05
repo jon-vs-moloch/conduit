@@ -1,0 +1,15 @@
+{
+  "schema": "conduit.update-manifest.v1",
+  "version": "0.0.1",
+  "channel": "local-preview",
+  "publishedAt": "2026-05-05T00:00:00Z",
+  "releaseNotes": "Initial local menu-bar app preview. This manifest shape is ready for signed release artifacts, but this local-preview entry is intentionally not a production auto-update.",
+  "artifacts": [
+    {
+      "platform": "macos-universal",
+      "url": "https://example.invalid/conduit/releases/0.0.1/Conduit.zip",
+      "sha256": "local-preview-placeholder",
+      "signature": null
+    }
+  ]
+}

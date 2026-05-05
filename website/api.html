@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Conduit API</title>
+  <meta name="description" content="Conduit request envelope and local control API overview.">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span>Conduit</a>
+    <nav class="nav" aria-label="Main">
+      <a href="index.html">Home</a>
+      <a href="download.html">Download</a>
+      <a href="about.html">About</a>
+      <a aria-current="page" href="api.html">API</a>
+    </nav>
+  </header>
+  <main class="page">
+    <h1>Conduit API</h1>
+    <p class="lead">The v0 API is a canonical request envelope plus a local control surface. Clipboard-origin execution must include schema, source metadata, permissions, session ID, nonce, and stable action IDs.</p>
+    <pre class="code">```conduit
+{
+  "schema": "conduit.request.v1",
+  "source": { "kind": "clipboard", "trust": "untrusted" },
+  "permissions": [
+    { "kind": "filesystem", "scope": "project", "access": "read" }
+  ],
+  "sessionId": "session_...",
+  "nonce": "nonce_...",
+  "actions": [
+    {
+      "id": "list_project",
+      "tool": "file.list",
+      "args": { "path": "." }
+    }
+  ]
+}
+```</pre>
+    <section class="grid">
+      <article class="card">
+        <h3>Envelope parser</h3>
+        <p>Compliance mode accepts raw JSON or a single fenced <code>conduit</code> or <code>conduit-json</code> block. It rejects prose wrappers and multiple envelopes.</p>
+      </article>
+      <article class="card">
+        <h3>Local app API</h3>
+        <p><code>GET /api/status</code>, <code>GET /api/sessions</code>, <code>POST /api/sessions</code>, <code>POST /api/clipboard/check</code>, and run result endpoints back the control app.</p>
+      </article>
+      <article class="card">
+        <h3>Result format</h3>
+        <p>Conduit-native request execution returns <code>CONDUIT_RESULTS_JSON</code>. Agent-loop compatibility can still use legacy tool result blocks.</p>
+      </article>
+    </section>
+    <div class="callout">
+      <p>Duplicate JSON keys, comments, trailing commas, missing source metadata, and missing permission declarations are rejected for clipboard execution.</p>
+    </div>
+  </main>
+  <footer class="footer">Exact envelope parsing is the default API contract, not a UI preference.</footer>
+</body>
+</html>
