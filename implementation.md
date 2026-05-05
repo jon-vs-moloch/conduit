@@ -969,6 +969,13 @@ Purpose:
 - later YOLO automation
 ```
 
+Implemented bridge UX:
+
+- popup reads `http://127.0.0.1:3333/health`
+- popup surfaces tab heartbeat, outbound queue/send/retry state, and last errors
+- popup can manually retry pending, retrying, or exhausted outbounds through `/api/conduit-retry`
+- control panel overview mirrors bridge health and exposes the same retry path
+
 Compliance mode should not depend on the extension.
 
 The extension can be added after clipboard daemon works.

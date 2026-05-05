@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Conduit Bridge</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Conduit Bridge</h1>
+      <span id="stateBadge">Checking</span>
+    </header>
+
+    <section class="summary">
+      <div>
+        <b id="tabState">-</b>
+        <span>tab</span>
+      </div>
+      <div>
+        <b id="outboundState">-</b>
+        <span>outbound</span>
+      </div>
+    </section>
+
+    <section>
+      <dl>
+        <dt>Last tab</dt>
+        <dd id="lastTab">-</dd>
+        <dt>Last send</dt>
+        <dd id="lastSend">-</dd>
+        <dt>Last error</dt>
+        <dd id="lastError">-</dd>
+      </dl>
+    </section>
+
+    <section id="attentionPanel" class="attention hidden">
+      <strong>Needs attention</strong>
+      <p id="attentionText"></p>
+      <button id="retryButton">Retry outbound</button>
+    </section>
+
+    <footer>
+      <button id="refreshButton">Refresh</button>
+      <a href="http://127.0.0.1:3333/health" target="_blank">Health JSON</a>
+    </footer>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

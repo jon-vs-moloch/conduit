@@ -263,6 +263,8 @@ describe('ExtensionTransport', () => {
     const health = await fetch(`${transport.getBaseUrl()}/health`);
     await expect(health.json()).resolves.toMatchObject({
       retryingOutbound: 0,
+      attentionOutbound: 1,
+      attentionOutboundIds: [first.transportId],
       lastTransportError: {
         transportId: first.transportId,
         status: 'failed',
@@ -271,6 +273,41 @@ describe('ExtensionTransport', () => {
         deliveryAttempts: 3
       }
     });
+  });
+
+  it('manually retries an exhausted outbound send', async () => {
+    const send = transport.sendMessage('hello ChatGPT');
+
+    const firstResponse = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
+    const first = await firstResponse.json() as OutboundPollResponse;
+    await expect(send).resolves.toBeUndefined();
+
+    for (const error of ['Composer not ready', 'Send button unavailable', 'Still broken']) {
+      await postJson(`${transport.getBaseUrl()}/api/conduit-send-result`, {
+        transportId: first.transportId,
+        status: 'failed',
+        error
+      });
+      await delay(25);
+      const health = await fetch(`${transport.getBaseUrl()}/health`);
+      const state = await health.json() as any;
+      if (!state.lastTransportError?.exhausted) {
+        await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
+      }
+    }
+
+    const retryResult = await postJson(`${transport.getBaseUrl()}/api/conduit-retry`, {
+      transportId: first.transportId
+    });
+    expect(retryResult).toMatchObject({
+      ok: true,
+      transportId: first.transportId,
+      status: 'queued'
+    });
+
+    const retryResponse = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
+    const retry = await retryResponse.json() as OutboundPollResponse;
+    expect(retry.transportId).toBe(first.transportId);
   });
 });
 

@@ -128,8 +128,21 @@ For simple requests, Conduit accepts compact action shortcuts:
 - `patch: "diff --git ..."` -> `file.patch`
 - `shell: "npm test"` -> `shell.run`
 
+Small-model-friendly aliases are accepted too:
+
+```conduit
+{
+  "v": "1",
+  "session": "sess_...",
+  "n": "call_...",
+  "do": "list",
+  "path": "."
+}
+```
+
 For multiple actions, use `actions: [...]`; each item can still use the same
-shortcuts, and Conduit will normalize them into canonical tool calls.
+shortcuts, string commands such as `"read README.md"`, or canonical tool calls.
+Conduit normalizes them into canonical tool calls before policy checks.
 
 Completion shape:
 
@@ -189,6 +202,10 @@ Useful fields:
   extension but not yet confirmed as sent
 - `lastSendResult`: last extension send result
 - `lastTransportError`: last abandoned or failed outbound send
+
+The extension popup and control panel show the same bridge health. If outbound
+delivery exhausts retries, use **Retry outbound** from either surface after
+reloading the ChatGPT tab or extension.
 
 Service logs live in:
 

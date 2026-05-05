@@ -367,6 +367,13 @@ function renderAppHtml(): string {
           <div class="panel-head"><h2>Runtime</h2></div>
           <div class="panel-body"><pre id="statusJson">{}</pre></div>
         </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Extension Bridge</h2>
+            <button class="btn" id="retryOutbound">Retry Outbound</button>
+          </div>
+          <div class="panel-body"><pre id="bridgeJson">{}</pre></div>
+        </div>
       </section>
       <section id="sessionsView" class="hidden">
         <div class="panel">
@@ -416,7 +423,7 @@ function renderAppHtml(): string {
 
 function renderAppJs(): string {
   return `
-const state = { status: null, sessions: [], approvals: [], runs: [], view: 'overview' };
+const state = { status: null, bridge: null, sessions: [], approvals: [], runs: [], view: 'overview' };
 const $ = (id) => document.getElementById(id);
 
 async function api(path, options = {}) {
@@ -432,13 +439,15 @@ async function api(path, options = {}) {
 function setStatus(text) { $('appStatus').textContent = text || ''; }
 
 async function refresh() {
-  const [status, sessions, approvals, runs] = await Promise.all([
+  const [status, bridge, sessions, approvals, runs] = await Promise.all([
     api('/api/status'),
+    fetchBridgeHealth(),
     api('/api/sessions'),
     api('/api/approvals'),
     api('/api/runs')
   ]);
   state.status = status;
+  state.bridge = bridge;
   state.sessions = sessions.sessions;
   state.approvals = approvals.approvals;
   state.runs = runs.runs;
@@ -450,6 +459,8 @@ function render() {
   $('runCount').textContent = state.runs.length;
   $('mode').textContent = state.status?.mode || 'Compliance';
   $('statusJson').textContent = JSON.stringify(state.status, null, 2);
+  $('bridgeJson').textContent = JSON.stringify(state.bridge, null, 2);
+  $('retryOutbound').disabled = !bridgeCanRetry(state.bridge);
   renderSessions();
   renderApprovals();
   renderRuns();
@@ -557,6 +568,15 @@ $('checkClipboard').addEventListener('click', async () => {
   await refresh();
 });
 
+$('retryOutbound').addEventListener('click', async () => {
+  const transportId = state.bridge?.attentionOutboundIds?.[0]
+    || state.bridge?.retryingOutboundIds?.[0]
+    || state.bridge?.pendingSendResultIds?.[0];
+  await fetchBridgeRetry(transportId);
+  setStatus('Queued outbound retry.');
+  await refresh();
+});
+
 $('copyHandshake').addEventListener('click', async () => {
   setStatus('Creating agent handshake...');
   const result = await api('/api/agent-handshake', {
@@ -593,6 +613,34 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[char]));
+}
+
+async function fetchBridgeHealth() {
+  try {
+    const response = await fetch('http://127.0.0.1:3333/health');
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return await response.json();
+  } catch (error) {
+    return {
+      status: 'offline',
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+async function fetchBridgeRetry(transportId) {
+  const response = await fetch('http://127.0.0.1:3333/api/conduit-retry', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(transportId ? { transportId } : {})
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Retry failed');
+  return data;
+}
+
+function bridgeCanRetry(bridge) {
+  return Boolean(bridge?.attentionOutboundIds?.length || bridge?.retryingOutboundIds?.length || bridge?.pendingSendResultIds?.length);
 }
 
 refresh().catch((error) => setStatus(error.message));

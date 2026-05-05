@@ -1022,6 +1022,8 @@ The extension is optional for compliance mode.
 Its roles:
 
 - show Conduit status in browser
+- show pending/retrying/exhausted outbound delivery state
+- offer a manual retry for a pending or exhausted outbound send
 - provide ChatGPT-specific UX helpers
 - optionally detect/copy Conduit blocks
 - optionally paste results
@@ -1029,6 +1031,23 @@ Its roles:
 - eventually support YOLO browser automation
 
 Compliance mode should work without the extension.
+
+### 16.1 Small-Model Request Forms
+
+The canonical envelope remains the security contract, but agent-loop parsers MAY
+accept simpler aliases before policy evaluation. Supported aliases SHOULD
+normalize into the canonical action model and SHOULD NOT bypass session, nonce,
+source, permission, policy, or logging requirements.
+
+Examples:
+
+```json
+{ "v": "1", "session": "sess_...", "n": "call_...", "do": "list", "path": "." }
+```
+
+```json
+{ "schema": "conduit.request.v1", "sessionId": "sess_...", "nonce": "call_...", "actions": ["read README.md", "status"] }
+```
 
 ---
 

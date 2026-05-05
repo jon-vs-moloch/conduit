@@ -82,6 +82,9 @@ describe('macOS menu-bar package scaffold', () => {
       'https://*.chatgpt.com/*',
       'https://chat.openai.com/*'
     ]));
+    expect(manifest.action).toMatchObject({
+      default_popup: 'popup.html'
+    });
     expect(manifest.content_scripts[0].matches).toEqual(expect.arrayContaining([
       'https://chatgpt.com/*',
       'https://*.chatgpt.com/*',
@@ -90,6 +93,7 @@ describe('macOS menu-bar package scaffold', () => {
 
     const background = await readText('extension/background.js');
     const content = await readText('extension/content.js');
+    const popup = await readText('extension/popup.js');
     expect(background).toContain('/api/conduit-tab-status');
     expect(content).toContain('content_script_alive');
     expect(content).toContain('outbound_received');
@@ -98,6 +102,8 @@ describe('macOS menu-bar package scaffold', () => {
     expect(content).toContain('getRuntimeLastError');
     expect(content).toContain('scheduleOutboundPoll');
     expect(content).toContain('Extension context invalidated');
+    expect(popup).toContain('/api/conduit-retry');
+    expect(popup).toContain('attentionOutboundIds');
   });
 
   it('exposes package scripts and a Codex run action for local launch', async () => {

@@ -36,6 +36,8 @@ describe('control panel app', () => {
   it('serves the app shell and status API', async () => {
     const html = await fetchText(`${app.url}/`);
     expect(html).toContain('Conduit Control');
+    expect(html).toContain('Extension Bridge');
+    expect(html).toContain('Retry Outbound');
 
     const status = await fetchJson(`${app.url}/api/status`);
     expect(status).toMatchObject({

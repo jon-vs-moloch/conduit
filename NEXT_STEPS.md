@@ -40,6 +40,12 @@ Current state:
   - `diff: "src/index.ts"` -> `git.diff`
   - `status: true` -> `git.status`
   - `write`, `patch`, and `shell` map to their corresponding high-risk tools
+- Small-model-friendly aliases are accepted:
+  - `session` -> `sessionId`
+  - `n` -> `nonce`
+  - `v: "1"` -> `schema: "conduit.request.v1"`
+  - `do` / `op` select the action alias
+  - string actions such as `"read README.md"` normalize into canonical actions
 - Session primitives are implemented:
   - `src/sessions/nonce.ts`
   - `src/sessions/profiles.ts`
@@ -92,6 +98,7 @@ Current state:
   - recent runs UI
   - clipboard check-once action
   - approvals UI for confirmation-required actions
+  - extension bridge health panel and outbound retry button
 - Local macOS menu-bar app scaffold is implemented:
   - `macos/ConduitMenuBar/Package.swift`
   - `macos/ConduitMenuBar/Sources/ConduitMenuBar/main.swift`
@@ -136,6 +143,12 @@ Current state:
   - extension listener results return `CONDUIT_RESULTS_JSON` with `nextNonce`
   - missing/invalid/replayed session data returns `CONDUIT_REPAIR_JSON`
   - `conduit-handshake-request` is detected but never auto-pairs; it asks for local user approval via Copy Agent Handshake
+- Extension bridge status/recovery is implemented:
+  - browser extension popup shows tab, outbound, retry, and error state from `/health`
+  - daemon retries failed or stalled outbounds with backoff
+  - exhausted outbounds are retained as attention-required retry candidates
+  - `/api/conduit-retry` manually requeues pending, retrying, or exhausted outbounds
+  - popup and control panel can trigger manual retry
 - Structured repair output is implemented:
   - rejected exact envelopes return `CONDUIT_REPAIR_JSON`
   - malformed JSON, multiple envelopes, missing session/nonce, and invalid session failures include repair instructions and an example request
@@ -152,11 +165,12 @@ npm run spike
 npm run macos:build
 ```
 
-Known-good verification from the latest README cleanup pass:
+Known-good verification from the latest bridge recovery/UI pass:
 
 ```txt
 npm run build  # passed
-npm test       # passed, 22 files / 99 tests
+npm test       # passed, 24 files / 116 tests
+npm run macos:build # passed
 npm run doctor # passed
 ```
 

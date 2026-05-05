@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto';
 const ACTION_FIELDS = new Set([
   'action',
   'call',
+  'do',
+  'op',
   'tool',
   'read',
   'list',
@@ -59,12 +61,13 @@ const TOOL_ALIASES: Record<string, string> = {
 export function normalizeCompactRequest(value: unknown): unknown {
   if (!isRecord(value)) return value;
 
-  const normalizedActions = normalizeActions(value);
+  const requestWithAliases = normalizeRequestAliases(value);
+  const normalizedActions = normalizeActions(requestWithAliases);
   if (!normalizedActions) {
-    return value;
+    return requestWithAliases;
   }
 
-  const request = { ...value };
+  const request = { ...requestWithAliases };
   for (const field of ACTION_FIELDS) {
     if (field !== 'actions') {
       delete request[field];
@@ -87,6 +90,10 @@ function normalizeActions(value: Record<string, unknown>): unknown[] | null {
 }
 
 function normalizeAction(value: unknown, index: number): unknown {
+  if (typeof value === 'string') {
+    return normalizeAction(parseActionString(value), index);
+  }
+
   if (!isRecord(value)) {
     return value;
   }
@@ -94,6 +101,8 @@ function normalizeAction(value: unknown, index: number): unknown {
   const explicitTool = stringValue(value.tool)
     ?? stringValue(value.action)
     ?? stringValue(value.call)
+    ?? stringValue(value.do)
+    ?? stringValue(value.op)
     ?? firstPresentAlias(value);
   const tool = explicitTool ? TOOL_ALIASES[explicitTool] ?? explicitTool : undefined;
   if (!tool) {
@@ -186,7 +195,39 @@ function isCompactAction(value: Record<string, unknown>): boolean {
   return stringValue(value.tool) !== undefined
     || stringValue(value.action) !== undefined
     || stringValue(value.call) !== undefined
+    || stringValue(value.do) !== undefined
+    || stringValue(value.op) !== undefined
     || firstPresentAlias(value) !== undefined;
+}
+
+function normalizeRequestAliases(value: Record<string, unknown>): Record<string, unknown> {
+  const request = { ...value };
+  if (request.sessionId === undefined) {
+    request.sessionId = stringValue(value.session) ?? stringValue(value.sid);
+  }
+  if (request.nonce === undefined) {
+    request.nonce = stringValue(value.n) ?? stringValue(value.callNonce);
+  }
+  if (request.schema === undefined && stringValue(value.v) === '1') {
+    request.schema = 'conduit.request.v1';
+  }
+  return request;
+}
+
+function parseActionString(value: string): Record<string, unknown> {
+  const [rawOp, ...rest] = value.trim().split(/\s+/);
+  const op = rawOp ?? '';
+  const operand = rest.join(' ');
+  if (!operand) {
+    return { do: op };
+  }
+  if (op === 'shell' || op === 'sh' || op === 'run') {
+    return { do: op, command: operand };
+  }
+  if (op === 'status' || op === 'git.status' || op === 'git_status') {
+    return { do: op };
+  }
+  return { do: op, path: operand };
 }
 
 function stableActionId(tool: string, args: Record<string, unknown>, index: number): string {

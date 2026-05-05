@@ -61,6 +61,7 @@ Lifecycle:
 - Extension listener execution is paired-session gated: no valid active `extension`/`browser-yolo` session and current nonce means no local action execution.
 - `/health` is available on the local bridge.
 - Send results are reported to `/api/conduit-send-result` with `transportId`, `attempts`, `messageChars`, and optional `error`.
+- The extension popup displays bridge health and can manually retry a pending, retrying, or exhausted outbound send through `/api/conduit-retry`.
 - `file.read` supports `offset` plus `nextOffset` metadata so large files can be read in continuation slices.
 
 Useful health check:
@@ -77,7 +78,7 @@ Interpretation:
 - `deliveredOutboundCount` increased but `pendingSendResults > 0`: the content script has accepted an outbound message and is still trying to insert/send it. The listener can continue processing inbound protocol blocks while this confirmation remains pending.
 - `retryingOutbound > 0`: the daemon is retrying a failed or timed-out outbound send with backoff. The retry reuses the same `transportId` so the content script can dedupe if the message actually committed.
 - `lastTransportError.status === "stalled"` or `lastTransportError.error` mentioning send progress: the extension picked up an outbound message but stopped reporting send stages. The daemon will requeue it with backoff rather than waiting for the full send-result timeout.
-- `lastTransportError.needsAttention === true`: daemon retries are exhausted. The user should reload the ChatGPT tab/extension or use a manual retry surface once available.
+- `attentionOutbound > 0` or `lastTransportError.needsAttention === true`: daemon retries are exhausted. Reload the ChatGPT tab/extension if needed, then use the popup or control panel retry control.
 - `lastTabStatus.status` beginning with `outbound_`: the content script is reporting its current send stage, such as outbound receipt, composer insertion, send-button wait, or commit verification.
 - `lastTransportError`: the local runtime saw an outbound send failure, timeout, retry, or exhausted retry state.
 - `lastSendResult.status === "failed"`: the content script could not insert/send the outbound message. The error is telemetry; the persistent listener remains alive for later inbound blocks.
@@ -85,8 +86,7 @@ Interpretation:
 
 ## Next Steps for Development
 
-1. Add extension UI/popup status.
-2. Detect discarded/throttled/unavailable tabs.
-3. Add extension UI for pending handshake requests and pairing status.
-4. Make composer insertion more robust across ChatGPT UI changes.
-5. Add static DOM fixture tests for content-script extraction helpers.
+1. Detect discarded/throttled/unavailable tabs.
+2. Add extension UI for pending handshake requests and pairing status.
+3. Make composer insertion more robust across ChatGPT UI changes.
+4. Add static DOM fixture tests for content-script extraction helpers.

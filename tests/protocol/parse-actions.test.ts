@@ -128,6 +128,64 @@ describe('parseActions', () => {
     }
   });
 
+  it('normalizes small-model-friendly action aliases', () => {
+    const result = parseActions([
+      '```conduit',
+      JSON.stringify({
+        v: '1',
+        session: 'sess_test',
+        n: 'call_test',
+        do: 'list',
+        path: '.',
+        reason: 'Look around.',
+        risk: 'low'
+      }, null, 2),
+      '```'
+    ].join('\n'));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.block.schema).toBe('conduit.request.v1');
+      expect(result.block.sessionId).toBe('sess_test');
+      expect(result.block.nonce).toBe('call_test');
+      expect(result.block.actions[0]).toMatchObject({
+        tool: 'file.list',
+        args: { path: '.' },
+        reason: 'Look around.',
+        risk: 'low'
+      });
+    }
+  });
+
+  it('normalizes string action shortcuts', () => {
+    const result = parseActions([
+      '```conduit',
+      JSON.stringify({
+        schema: 'conduit.request.v1',
+        sessionId: 'sess_test',
+        nonce: 'call_test',
+        actions: [
+          'list .',
+          'read README.md',
+          'status'
+        ]
+      }, null, 2),
+      '```'
+    ].join('\n'));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.block.actions.map((action) => action.tool)).toEqual([
+        'file.list',
+        'file.read',
+        'git.status'
+      ]);
+      expect(result.block.actions[0]?.args).toEqual({ path: '.' });
+      expect(result.block.actions[1]?.args).toEqual({ path: 'README.md' });
+      expect(result.block.actions[2]?.args).toEqual({});
+    }
+  });
+
   it('parses a legacy veyr-call code block for migration compatibility', () => {
     const result = parseActions([
       '```veyr-call',

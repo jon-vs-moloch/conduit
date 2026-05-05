@@ -71,6 +71,11 @@ export class ExtensionTransport implements ModelTransport {
     retryAt: string;
     error: string;
   }>();
+  private attentionOutbound = new Map<string, {
+    delivery: OutboundDelivery;
+    error: string;
+    observedAt: string;
+  }>();
   private deliveredOutboundCount = 0;
   private receivedInboundCount = 0;
   private outboundCounter = 0;
@@ -115,6 +120,7 @@ export class ExtensionTransport implements ModelTransport {
       clearTimeout(retry.timeout);
     }
     this.retryingOutbound.clear();
+    this.attentionOutbound.clear();
 
     if (this.pendingTurnReject) {
       this.pendingTurnReject(new Error('Extension transport closed.'));
@@ -209,6 +215,14 @@ export class ExtensionTransport implements ModelTransport {
           deliveryAttempts: retry.delivery.deliveryAttempts,
           error: retry.error
         })),
+        attentionOutbound: this.attentionOutbound.size,
+        attentionOutboundIds: [...this.attentionOutbound.keys()],
+        attentionOutboundDetails: [...this.attentionOutbound.values()].map((attention) => ({
+          transportId: attention.delivery.transportId,
+          deliveryAttempts: attention.delivery.deliveryAttempts,
+          error: attention.error,
+          observedAt: attention.observedAt
+        })),
         tabStatusCount: this.tabStatusCount,
         lastTabStatus: this.lastTabStatus,
         lastOutboundAt: this.lastOutboundAt,
@@ -234,6 +248,13 @@ export class ExtensionTransport implements ModelTransport {
       console.log('[ExtensionTransport] Send result from extension:', body);
       this.resolveSendResult(body);
       sendJson(res, 200, { status: 'ok' });
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/api/conduit-retry') {
+      const body = await readJsonBody(req).catch(() => ({})) as { transportId?: unknown };
+      const result = this.retryOutbound(typeof body.transportId === 'string' ? body.transportId : undefined);
+      sendJson(res, result.ok ? 200 : 404, result);
       return;
     }
 
@@ -413,6 +434,7 @@ export class ExtensionTransport implements ModelTransport {
   }
 
   private scheduleSendRetry(delivery: OutboundDelivery, error: string, status: 'failed' | 'timeout'): void {
+    this.attentionOutbound.delete(delivery.transportId);
     const retryDelays = this.options.sendRetryDelaysMs ?? SEND_RETRY_DELAYS_MS;
     const retryIndex = delivery.deliveryAttempts - 1;
     const retryDelay = retryDelays[retryIndex];
@@ -426,6 +448,11 @@ export class ExtensionTransport implements ModelTransport {
         needsAttention: true,
         observedAt: new Date().toISOString()
       };
+      this.attentionOutbound.set(delivery.transportId, {
+        delivery,
+        error,
+        observedAt: new Date().toISOString()
+      });
       console.warn(`[ExtensionTransport] outbound ${delivery.transportId} exhausted daemon send retries after ${delivery.deliveryAttempts} deliveries: ${error}`);
       return;
     }
@@ -452,6 +479,43 @@ export class ExtensionTransport implements ModelTransport {
       retryAt,
       error
     });
+  }
+
+  private retryOutbound(transportId?: string): { ok: true; transportId: string; status: string } | { ok: false; error: string } {
+    const selectedTransportId = transportId
+      ?? [...this.attentionOutbound.keys()][0]
+      ?? [...this.retryingOutbound.keys()][0]
+      ?? [...this.pendingSendResults.keys()][0];
+    if (!selectedTransportId) {
+      return { ok: false, error: 'No outbound message is available to retry.' };
+    }
+
+    const attention = this.attentionOutbound.get(selectedTransportId);
+    const retrying = this.retryingOutbound.get(selectedTransportId);
+    const pending = this.pendingSendResults.get(selectedTransportId);
+    const delivery = attention?.delivery ?? retrying?.delivery ?? pending?.delivery;
+    if (!delivery) {
+      return { ok: false, error: `Unknown outbound message: ${selectedTransportId}` };
+    }
+
+    if (retrying) {
+      clearTimeout(retrying.timeout);
+      this.retryingOutbound.delete(selectedTransportId);
+    }
+    if (pending) {
+      clearTimeout(pending.resultTimeout);
+      clearTimeout(pending.progressTimeout);
+      this.pendingSendResults.delete(selectedTransportId);
+    }
+    this.attentionOutbound.delete(selectedTransportId);
+    this.enqueueOutbound(delivery);
+    this.lastTransportError = {
+      transportId: selectedTransportId,
+      status: 'manual_retry',
+      retrying: true,
+      observedAt: new Date().toISOString()
+    };
+    return { ok: true, transportId: selectedTransportId, status: 'queued' };
   }
 
   private recordSendProgress(body: ExtensionTabStatusPayload | null): void {

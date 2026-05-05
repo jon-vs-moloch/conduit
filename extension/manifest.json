@@ -3,6 +3,10 @@
   "name": "Conduit Bridge",
   "version": "0.1.0",
   "description": "Bridge for ChatGPT to Conduit local runtime",
+  "action": {
+    "default_title": "Conduit Bridge",
+    "default_popup": "popup.html"
+  },
   "permissions": [
     "activeTab",
     "scripting"
