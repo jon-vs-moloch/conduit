@@ -174,7 +174,8 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       const approval = await resolveApprovalRequest(
         decodeURIComponent(approvalMatch[1]),
         decision,
-        typeof body.reason === 'string' ? body.reason : undefined
+        typeof body.reason === 'string' ? body.reason : undefined,
+        'control-app'
       );
       sendJson(res, 200, { approval });
       return;

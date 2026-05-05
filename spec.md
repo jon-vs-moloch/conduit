@@ -923,6 +923,11 @@ requests visible in the app. The approval view SHOULD show at least:
 - run id
 - project root
 
+When a terminal approval prompt is available, it SHOULD resolve the same durable
+approval request shown in the app rather than creating a separate confirmation
+path. Approving or denying from any UI MUST resolve the shared request for all
+other approval surfaces and record the source of the decision.
+
 Approving an action allows that single pending action to continue. Denying it
 returns a denied tool result. Approval records MUST NOT broaden the session
 profile, grant future approvals, or bypass hard-deny checks.

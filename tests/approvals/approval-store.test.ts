@@ -6,7 +6,8 @@ import {
   createApprovalRequest,
   listApprovalRequests,
   requestStoredApproval,
-  resolveApprovalRequest
+  resolveApprovalRequest,
+  waitForApprovalDecision
 } from '../../src/approvals/approval-store.js';
 
 describe('approval store', () => {
@@ -37,10 +38,11 @@ describe('approval store', () => {
       }
     ]);
 
-    const resolved = await resolveApprovalRequest(approval.approvalId, 'approved', 'Looks okay.');
+    const resolved = await resolveApprovalRequest(approval.approvalId, 'approved', 'Looks okay.', 'control-app');
     expect(resolved).toMatchObject({
       approvalId: approval.approvalId,
       status: 'approved',
+      decidedBy: 'control-app',
       decisionReason: 'Looks okay.'
     });
   });
@@ -51,6 +53,20 @@ describe('approval store', () => {
     await resolveApprovalRequest(approval.approvalId, 'approved');
 
     await expect(pending).resolves.toBe(true);
+  });
+
+  it('returns the resolved approval record while waiting', async () => {
+    const approval = await createApprovalRequest(sampleRequest());
+    const pending = waitForApprovalDecision(approval.approvalId, 5000);
+
+    await resolveApprovalRequest(approval.approvalId, 'denied', 'Nope.', 'terminal');
+
+    await expect(pending).resolves.toMatchObject({
+      approvalId: approval.approvalId,
+      status: 'denied',
+      decidedBy: 'terminal',
+      decisionReason: 'Nope.'
+    });
   });
 });
 

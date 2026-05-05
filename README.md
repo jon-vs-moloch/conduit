@@ -213,10 +213,12 @@ patch, and shell actions are confirmation-gated by profile:
 - `edit-with-confirmation`: confirms `file.write` and `file.patch`; denies shell
 - `shell-manual`: confirms `file.write`, `file.patch`, and `shell.run`
 
-Interactive CLI runs ask in the terminal. Menu-bar/daemon/listener runs create a
-pending approval in shared state and wait for the local control app. Open the
-control panel and use the **Approvals** tab to inspect action, reason, policy,
-and args before approving or denying.
+Confirmation-required actions create one pending approval in shared state.
+Terminal runs and the local control app are both approval surfaces for that same
+record: approve or deny from either place, and the other UI will observe the
+resolved decision. Approval records store where the decision came from, such as
+`terminal` or `control-app`. Open the control panel and use the **Approvals** tab
+to inspect action, reason, policy, and args before approving or denying.
 
 ## Tools And Policy
 

@@ -1,5 +1,12 @@
 import readline from 'node:readline';
-import { requestStoredApproval, type ConfirmationRequest } from '../approvals/approval-store.js';
+import {
+  DEFAULT_APPROVAL_TIMEOUT_MS,
+  createApprovalRequest,
+  resolveApprovalRequest,
+  waitForApprovalDecision,
+  type ApprovalRecord,
+  type ConfirmationRequest
+} from '../approvals/approval-store.js';
 import type { PolicyDecision } from '../policy/policy-engine.js';
 import { evaluateActionPolicy } from '../policy/policy-engine.js';
 import type { ToolAction, ToolResult } from '../protocol/schemas.js';
@@ -154,21 +161,56 @@ function createEphemeralPolicySession(projectRoot: string): ConduitSession {
 }
 
 function defaultConfirmation(request: ConfirmationRequest): Promise<boolean> {
-  if (process.stdin.isTTY && process.stdout.isTTY) {
-    return askConfirmation(request);
-  }
-  return requestStoredApproval(request);
+  return requestSharedApproval(request);
 }
 
-function askConfirmation(request: ConfirmationRequest): Promise<boolean> {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout
-    });
-    rl.question(request.prompt, (answer) => {
-      rl.close();
-      resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes');
-    });
+async function requestSharedApproval(request: ConfirmationRequest): Promise<boolean> {
+  const record = await createApprovalRequest(request);
+  const closeTerminalPrompt = offerTerminalApproval(record, request);
+  try {
+    const decided = await waitForApprovalDecision(record.approvalId, DEFAULT_APPROVAL_TIMEOUT_MS);
+    return decided.status === 'approved';
+  } finally {
+    closeTerminalPrompt?.();
+  }
+}
+
+function offerTerminalApproval(record: ApprovalRecord, request: ConfirmationRequest): (() => void) | undefined {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    return undefined;
+  }
+
+  let closed = false;
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
   });
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    rl.close();
+  };
+
+  const prompt = [
+    request.prompt.trimEnd(),
+    '',
+    `Approval ID: ${record.approvalId}`,
+    'You can also approve or deny this action in Conduit Control.',
+    'Allow from terminal? (y/N): '
+  ].join('\n');
+
+  rl.question(prompt, (answer) => {
+    if (closed) return;
+    closed = true;
+    const approved = answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes';
+    void resolveApprovalRequest(
+      record.approvalId,
+      approved ? 'approved' : 'denied',
+      approved ? 'Approved from terminal.' : 'Denied from terminal.',
+      'terminal'
+    );
+    rl.close();
+  });
+
+  return close;
 }

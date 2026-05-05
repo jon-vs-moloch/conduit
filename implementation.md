@@ -754,7 +754,7 @@ evaluate policy
 if requires_review:
   open review / print review
 if requires_confirmation:
-  prompt if interactive, otherwise create shared app approval request
+  create shared approval request and expose it to terminal/app approval surfaces
 if denied:
   render denial result
 if allowed:
@@ -765,10 +765,12 @@ if allowed:
   render results
 ```
 
-Non-interactive service execution writes pending approval records under the
-Conduit state directory. The control app lists those records and resolves each
-one as approved or denied. An approval is single-use for the pending action; it
-does not modify the session profile or bypass hard denials.
+Confirmation-required execution writes pending approval records under the
+Conduit state directory. The control app lists those records, and interactive
+terminal runs also attach a terminal prompt to the same record. Approving or
+denying from any surface resolves the single pending action, records the decision
+source, and clears the request from pending UI. An approval is single-use for the
+pending action; it does not modify the session profile or bypass hard denials.
 
 ### 7.1 Result Schema
 

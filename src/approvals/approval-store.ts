@@ -5,7 +5,7 @@ import { getStateRoot } from '../state/paths.js';
 import { createRunId } from '../util/ids.js';
 
 const APPROVAL_POLL_MS = 500;
-const DEFAULT_APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
+export const DEFAULT_APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
 
 export interface ConfirmationRequest {
   action: ToolAction;
@@ -25,6 +25,7 @@ export interface ApprovalRecord extends ConfirmationRequest {
   createdAt: string;
   updatedAt: string;
   decidedAt?: string;
+  decidedBy?: string;
   decisionReason?: string;
 }
 
@@ -37,7 +38,8 @@ export async function requestStoredApproval(
   options: StoredApprovalOptions = {}
 ): Promise<boolean> {
   const record = await createApprovalRequest(request);
-  return waitForApprovalDecision(record.approvalId, options.timeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS);
+  const decided = await waitForApprovalDecision(record.approvalId, options.timeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS);
+  return decided.status === 'approved';
 }
 
 export async function createApprovalRequest(request: ConfirmationRequest): Promise<ApprovalRecord> {
@@ -68,7 +70,8 @@ export async function listApprovalRequests(): Promise<ApprovalRecord[]> {
 export async function resolveApprovalRequest(
   approvalId: string,
   status: 'approved' | 'denied',
-  decisionReason?: string
+  decisionReason?: string,
+  decidedBy?: string
 ): Promise<ApprovalRecord> {
   const record = await readApprovalRecord(approvalId);
   if (!record) {
@@ -84,43 +87,46 @@ export async function resolveApprovalRequest(
     status,
     updatedAt: now,
     decidedAt: now,
+    ...(decidedBy ? { decidedBy } : {}),
     ...(decisionReason ? { decisionReason } : {})
   };
   await writeApprovalRecord(updated);
   return updated;
 }
 
-async function waitForApprovalDecision(approvalId: string, timeoutMs: number): Promise<boolean> {
+export async function waitForApprovalDecision(
+  approvalId: string,
+  timeoutMs: number = DEFAULT_APPROVAL_TIMEOUT_MS
+): Promise<ApprovalRecord> {
   const startedAt = Date.now();
   while (true) {
     const record = await readApprovalRecord(approvalId);
     if (!record) {
-      return false;
+      throw new Error(`Unknown approval request: ${approvalId}`);
     }
-    if (record.status === 'approved') {
-      return true;
-    }
-    if (record.status === 'denied' || record.status === 'expired') {
-      return false;
+    if (record.status !== 'pending') {
+      return record;
     }
     if (Date.now() - startedAt >= timeoutMs) {
-      await expireApprovalRequest(record);
-      return false;
+      return expireApprovalRequest(record);
     }
     await delay(APPROVAL_POLL_MS);
   }
 }
 
-async function expireApprovalRequest(record: ApprovalRecord): Promise<void> {
-  if (record.status !== 'pending') return;
+async function expireApprovalRequest(record: ApprovalRecord): Promise<ApprovalRecord> {
+  if (record.status !== 'pending') return record;
   const now = new Date().toISOString();
-  await writeApprovalRecord({
+  const expired: ApprovalRecord = {
     ...record,
     status: 'expired',
     updatedAt: now,
     decidedAt: now,
+    decidedBy: 'timeout',
     decisionReason: 'Approval request timed out.'
-  });
+  };
+  await writeApprovalRecord(expired);
+  return expired;
 }
 
 async function readApprovalRecord(approvalId: string): Promise<ApprovalRecord | null> {

@@ -133,6 +133,7 @@ describe('control panel app', () => {
     expect(approved.approval).toMatchObject({
       approvalId: approval.approvalId,
       status: 'approved',
+      decidedBy: 'control-app',
       decisionReason: 'Approved in test.'
     });
   });
