@@ -20,10 +20,12 @@ describe('ExtensionTransport', () => {
       status: 'ok',
       deliveredOutboundCount: 0,
       receivedInboundCount: 0,
+      pendingSendResults: 0,
       tabStatusCount: 0,
       lastTabStatus: null,
       lastOutboundAt: null,
-      lastSendResult: null
+      lastSendResult: null,
+      lastTransportError: null
     });
   });
 
@@ -129,6 +131,15 @@ describe('ExtensionTransport', () => {
 
     await expect(handledSend).resolves.toMatchObject({
       message: expect.stringMatching(/Timed out waiting for send button/)
+    });
+
+    const health = await fetch(`${transport.getBaseUrl()}/health`);
+    await expect(health.json()).resolves.toMatchObject({
+      lastTransportError: {
+        transportId: outbound.transportId,
+        status: 'failed',
+        error: 'Timed out waiting for send button'
+      }
     });
   });
 });

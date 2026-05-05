@@ -58,6 +58,7 @@ export class ExtensionTransport implements ModelTransport {
   private outboundCounter = 0;
   private lastOutboundAt: string | null = null;
   private lastSendResult: unknown = null;
+  private lastTransportError: unknown = null;
   private tabStatusCount = 0;
   private lastTabStatus: unknown = null;
 
@@ -178,10 +179,12 @@ export class ExtensionTransport implements ModelTransport {
         pendingPolls: this.pendingOutboundResponses.length,
         deliveredOutboundCount: this.deliveredOutboundCount,
         receivedInboundCount: this.receivedInboundCount,
+        pendingSendResults: this.pendingSendResults.size,
         tabStatusCount: this.tabStatusCount,
         lastTabStatus: this.lastTabStatus,
         lastOutboundAt: this.lastOutboundAt,
-        lastSendResult: this.lastSendResult
+        lastSendResult: this.lastSendResult,
+        lastTransportError: this.lastTransportError
       });
       return;
     }
@@ -296,7 +299,15 @@ export class ExtensionTransport implements ModelTransport {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pendingSendResults.delete(transportId);
-        reject(new Error(`Timed out waiting for extension to confirm outbound ${transportId} was sent.`));
+        const error = new Error(`Timed out waiting for extension to confirm outbound ${transportId} was sent.`);
+        this.lastTransportError = {
+          transportId,
+          status: 'timeout',
+          error: error.message,
+          observedAt: new Date().toISOString()
+        };
+        this.lastSendResult = this.lastTransportError;
+        reject(error);
       }, 120_000);
       this.pendingSendResults.set(transportId, { resolve, reject, timeout });
     });
@@ -313,6 +324,7 @@ export class ExtensionTransport implements ModelTransport {
     this.pendingSendResults.delete(transportId);
 
     if (body?.status === 'sent') {
+      this.lastTransportError = null;
       pending.resolve();
       return;
     }
@@ -320,6 +332,12 @@ export class ExtensionTransport implements ModelTransport {
     const error = typeof body?.error === 'string'
       ? body.error
       : `Extension failed to send outbound ${transportId}.`;
+    this.lastTransportError = {
+      transportId,
+      status: typeof body?.status === 'string' ? body.status : 'failed',
+      error,
+      observedAt: new Date().toISOString()
+    };
     pending.reject(new Error(error));
   }
 

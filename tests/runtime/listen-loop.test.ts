@@ -1,10 +1,11 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { processListenTurn, type ListenSession } from '../../src/runtime/listen-loop.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { listenLoop, processListenTurn, type ListenSession } from '../../src/runtime/listen-loop.js';
 import { createSession, getSession } from '../../src/sessions/session-store.js';
 import { FakeTransport } from '../../src/transports/fake-transport.js';
+import type { AssistantTurn, ModelTransport, WaitOptions } from '../../src/transports/types.js';
 
 describe('processListenTurn', () => {
   let tempRoot: string;
@@ -294,4 +295,53 @@ describe('processListenTurn', () => {
     expect(transport.sentMessages[0]).toContain('Local user approval is required');
     expect(transport.sentMessages[0]).toContain('Copy Agent Handshake');
   });
+
+  it('keeps the persistent listener alive after an outbound transport failure', async () => {
+    const transport = new FailingSendThenStopTransport();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(listenLoop({
+      projectRoot,
+      transport,
+      requireTrustedSession: true
+    })).rejects.toThrow('stop after retry');
+
+    expect(transport.sendAttempts).toBe(1);
+    expect(transport.waitAttempts).toBe(2);
+    expect(transport.closed).toBe(true);
+    expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('Transport turn failed: transport failure'));
+
+    consoleError.mockRestore();
+  });
 });
+
+class FailingSendThenStopTransport implements ModelTransport {
+  sendAttempts = 0;
+  waitAttempts = 0;
+  closed = false;
+
+  async open(): Promise<void> {}
+
+  async close(): Promise<void> {
+    this.closed = true;
+  }
+
+  async ensureReady(): Promise<void> {}
+
+  async sendMessage(_message: string): Promise<void> {
+    this.sendAttempts += 1;
+    throw new Error('transport failure');
+  }
+
+  async waitForAssistantTurn(_options?: WaitOptions): Promise<AssistantTurn> {
+    this.waitAttempts += 1;
+    if (this.waitAttempts === 1) {
+      return {
+        text: 'plain prose with no conduit block',
+        timestamp: '2026-05-05T00:00:00.000Z'
+      };
+    }
+
+    throw new Error('stop after retry');
+  }
+}

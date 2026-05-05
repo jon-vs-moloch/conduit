@@ -54,15 +54,20 @@ export async function listenLoop(input: ListenInput): Promise<void> {
   try {
     while (true) {
       const assistantTurn = await input.transport.waitForAssistantTurn({ timeoutMs: 0 });
-      const result = await processListenTurn({
-        assistantTurn,
-        projectRoot,
-        transport: input.transport,
-        session,
-        yes: input.yes,
-        requireTrustedSession: input.requireTrustedSession
-      });
-      session = result.session;
+      try {
+        const result = await processListenTurn({
+          assistantTurn,
+          projectRoot,
+          transport: input.transport,
+          session,
+          yes: input.yes,
+          requireTrustedSession: input.requireTrustedSession
+        });
+        session = result.session;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[ListenLoop] Transport turn failed: ${message}`);
+      }
     }
   } finally {
     await input.transport.close();
