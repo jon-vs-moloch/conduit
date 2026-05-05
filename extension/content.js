@@ -129,7 +129,7 @@ function extractLegacyBlocks(text, kind, start, end) {
 
 function extractRenderedNamedBlocks(text) {
   const blocks = [];
-  for (const kind of ['conduit-call', 'conduit-final', 'conduit-handshake-request', 'veyr-call', 'veyr-final']) {
+  for (const kind of ['conduit', 'conduit-call', 'conduit-final', 'conduit-handshake-request', 'veyr-call', 'veyr-final']) {
     let searchFrom = 0;
     while (searchFrom < text.length) {
       const labelIndex = text.indexOf(kind, searchFrom);

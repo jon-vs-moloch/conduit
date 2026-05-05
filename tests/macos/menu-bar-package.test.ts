@@ -89,6 +89,7 @@ describe('macOS menu-bar package scaffold', () => {
     const content = await readText('extension/content.js');
     expect(background).toContain('/api/conduit-tab-status');
     expect(content).toContain('content_script_alive');
+    expect(content).toContain("['conduit', 'conduit-call'");
   });
 
   it('exposes package scripts and a Codex run action for local launch', async () => {
