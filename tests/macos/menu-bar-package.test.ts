@@ -90,6 +90,8 @@ describe('macOS menu-bar package scaffold', () => {
     expect(background).toContain('/api/conduit-tab-status');
     expect(content).toContain('content_script_alive');
     expect(content).toContain("['conduit', 'conduit-call'");
+    expect(content).toContain('safeSendMessage');
+    expect(content).toContain('Extension context invalidated');
   });
 
   it('exposes package scripts and a Codex run action for local launch', async () => {

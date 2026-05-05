@@ -11,8 +11,12 @@ const observer = new MutationObserver(() => {
   scheduleScan();
 });
 
+let extensionContextActive = true;
+let heartbeatTimer = null;
+let scanInterval = null;
+
 reportTabStatus('content_script_loaded');
-setInterval(() => reportTabStatus('content_script_alive'), 10_000);
+heartbeatTimer = setInterval(() => reportTabStatus('content_script_alive'), 10_000);
 
 let scanTimer = null;
 function scheduleScan() {
@@ -29,7 +33,7 @@ observer.observe(document.documentElement, {
   characterData: true
 });
 
-setInterval(scanLatestAssistantMessage, 2000);
+scanInterval = setInterval(scanLatestAssistantMessage, 2000);
 pollForOutboundMessages();
 scanLatestAssistantMessage();
 
@@ -50,7 +54,7 @@ function scanLatestAssistantMessage() {
     seenBlocks.add(key);
 
     console.log(`[Conduit Bridge] Detected ${block.kind}. Forwarding to background script.`);
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: 'CONDUIT_PROTOCOL_BLOCK',
       payload: block.text,
       kind: block.kind,
@@ -62,12 +66,49 @@ function scanLatestAssistantMessage() {
 }
 
 function reportTabStatus(status) {
-  chrome.runtime.sendMessage({
+  safeSendMessage({
     type: 'TAB_STATUS',
     status,
     url: location.href,
     observedAt: new Date().toISOString()
   });
+}
+
+function safeSendMessage(message, callback) {
+  if (!extensionContextActive) return false;
+  try {
+    chrome.runtime.sendMessage(message, callback);
+    return true;
+  } catch (error) {
+    if (isExtensionContextInvalidated(error)) {
+      disableExtensionContext();
+      return false;
+    }
+    throw error;
+  }
+}
+
+function isExtensionContextInvalidated(error) {
+  return /Extension context invalidated/i.test(error instanceof Error ? error.message : String(error));
+}
+
+function disableExtensionContext() {
+  if (!extensionContextActive) return;
+  extensionContextActive = false;
+  observer.disconnect();
+  if (scanTimer) {
+    clearTimeout(scanTimer);
+    scanTimer = null;
+  }
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+  if (scanInterval) {
+    clearInterval(scanInterval);
+    scanInterval = null;
+  }
+  console.warn('[Conduit Bridge] Extension context invalidated. Reload the ChatGPT tab to attach the current bridge.');
 }
 
 function findLatestAssistantMessage() {
@@ -239,7 +280,9 @@ function stableKey(block) {
 }
 
 function pollForOutboundMessages() {
-  chrome.runtime.sendMessage({ type: 'POLL_OUTBOUND' }, (response) => {
+  if (!extensionContextActive) return;
+  safeSendMessage({ type: 'POLL_OUTBOUND' }, (response) => {
+    if (!extensionContextActive) return;
     if (chrome.runtime.lastError) {
       setTimeout(pollForOutboundMessages, 2000);
       return;
@@ -559,7 +602,7 @@ function isRetryableSendError(error) {
 }
 
 function reportSendResult(status, envelope, attempts, error, deduped) {
-  chrome.runtime.sendMessage({
+  safeSendMessage({
     type: 'SEND_RESULT',
     status,
     transportId: envelope.transportId,
