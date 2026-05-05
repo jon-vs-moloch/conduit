@@ -17,7 +17,7 @@ valid request copied
   -> action logged
 ```
 
-Use `/Users/jon/Projects/veyr` as the predecessor reference. Veyr already contains working pieces for:
+Use the sibling `veyr` project as the predecessor reference. Veyr already contains working pieces for:
 
 - structured action schemas
 - named protocol block parsing
@@ -489,7 +489,7 @@ unknown tool denied
 
 ## Phase 5 — Local Tools
 
-Port/adapt from `/Users/jon/Projects/veyr`.
+Port/adapt from the sibling `veyr` project.
 
 Implement first:
 
@@ -1097,7 +1097,7 @@ Required:
 Demo:
 
 ```txt
-conduit session create --label ChatGPT --profile read-only --root /Users/jon/Projects/conduit
+conduit session create --label ChatGPT --profile read-only --root /path/to/conduit
 conduit listen
 ```
 
@@ -1191,7 +1191,7 @@ ChatGPT continues
 
 ## 17. Implementation Notes from Veyr
 
-Port carefully from `/Users/jon/Projects/veyr`:
+Port carefully from the sibling `veyr` project:
 
 Useful modules:
 

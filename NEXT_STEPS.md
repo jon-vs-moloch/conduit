@@ -2,7 +2,7 @@
 
 Current state:
 
-- Conduit is scaffolded from `/Users/jon/Projects/veyr`.
+- Conduit was scaffolded from the sibling `veyr` project.
 - Package/bin/state identity is now Conduit:
   - package name: `conduit`
   - bin: `conduit`
@@ -144,28 +144,21 @@ npm run spike
 npm run macos:build
 ```
 
-Known-good verification from this pass:
+Known-good verification from the latest README cleanup pass:
 
 ```txt
 npm run build  # passed
-npm test       # passed, 21 files / 86 tests
-npm run spike  # passed
-npm run macos:build # passed
+npm test       # passed, 22 files / 99 tests
+npm run doctor # passed
 ```
 
-## Next Gate 1: Initialize The Repo
+## Completed Gate: GitHub Repository
 
-`/Users/jon/Projects/conduit` is not currently a git repo.
-
-Recommended:
+The repository is initialized and pushed to:
 
 ```txt
-git init
-git add .
-git commit -m "Scaffold Conduit from Veyr runtime"
+https://github.com/jon-vs-moloch/conduit
 ```
-
-Check `.gitignore` first. It came from Veyr and should already ignore `node_modules` and `dist`, but confirm before committing.
 
 ## Completed Gate: Session And Nonce Layer
 

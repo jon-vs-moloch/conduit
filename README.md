@@ -76,7 +76,7 @@ Load the development extension:
 2. Go to `chrome://extensions/`.
 3. Enable Developer mode.
 4. Click **Load unpacked**.
-5. Select `/Users/jon/Projects/conduit/extension`.
+5. Select the `extension/` directory from this repository checkout.
 6. Reload the ChatGPT tab after each extension code change.
 
 Start Conduit with the menu-bar app, then choose:

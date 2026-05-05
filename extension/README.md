@@ -19,7 +19,7 @@ The extension does not bypass auth, solve verification challenges, extract cooki
 2. Navigate to `chrome://extensions/`.
 3. Enable **Developer mode** (toggle in the top right).
 4. Click **Load unpacked**.
-5. Select this `extension` directory (`/Users/jon/Projects/conduit/extension`).
+5. Select this repository's `extension/` directory.
 6. The extension is now active!
 
 ## How to Run
