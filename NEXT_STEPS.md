@@ -94,6 +94,7 @@ Current state:
   - default startup for the control app and clipboard daemon
   - confirmed quit that stops supervised services
   - update-check menu path using `website/releases/conduit-appcast.json` or `CONDUIT_UPDATE_MANIFEST_URL`
+  - Copy Agent Handshake menu action for real chat-tab testing
 - Static web presence is implemented:
   - `website/index.html`
   - `website/download.html`
@@ -115,6 +116,12 @@ Current state:
 - macOS package scaffold coverage is implemented:
   - `tests/macos/menu-bar-package.test.ts`
   - SwiftPM package layout, build script, Codex Run action, and update manifest shape
+- Agent-loop handshake generation is implemented:
+  - `src/protocol/render-agent-handshake.ts`
+  - `POST /api/agent-handshake`
+  - control app toolbar button
+  - menu-bar `Copy Agent Handshake` action
+  - creates an `extension` session and copies a self-contained protocol intro for a real chat tab
 
 Verification commands:
 
@@ -420,12 +427,14 @@ Behavior:
 - asks for confirmation before quitting and stopping supervised services
 - checks a local update manifest by default
 - allows `CONDUIT_UPDATE_MANIFEST_URL` to point at a future hosted manifest
+- copies a fresh agent-loop handshake into the clipboard for real ChatGPT tab testing
 
 Important limitation:
 
 - this is a local preview app, not a signed/notarized distributable
 - update checking can find and open an artifact URL, but does not self-replace the app bundle yet
 - the local preview manifest is intentionally unsigned; production releases should use signed artifacts and a real manifest signature story
+- the handshake creates a paired agent-loop session, but extension-side session/nonce enforcement still needs to be wired before YOLO-style execution is trusted
 
 ## Next Gate 3: Signed Desktop/Menu-Bar Release
 

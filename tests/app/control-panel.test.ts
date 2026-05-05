@@ -98,6 +98,32 @@ describe('control panel app', () => {
     const runs = await fetchJson(`${app.url}/api/runs`);
     expect(runs.runs.length).toBeGreaterThan(0);
   });
+
+  it('creates and copies an agent-loop handshake through the API', async () => {
+    const created = await fetchJson(`${app.url}/api/agent-handshake`, {
+      method: 'POST',
+      body: JSON.stringify({
+        label: 'ChatGPT handshake',
+        root: projectRoot,
+        profile: 'read-only',
+        transport: 'extension',
+        docsUrl: 'https://example.test/conduit-api'
+      })
+    });
+
+    expect(created.copied).toBe(true);
+    expect(created.session.label).toBe('ChatGPT handshake');
+    expect(created.session.transport).toBe('extension');
+    expect(created.handshake).toContain('Conduit agent-loop handshake');
+    expect(created.handshake).toContain('conduit.handshake.v1');
+    expect(created.handshake).toContain('https://example.test/conduit-api');
+    expect(created.handshake).toContain(created.session.sessionId);
+    expect(created.handshake).toContain(created.session.currentNonce);
+    expect(clipboard.text).toBe(created.handshake);
+
+    const listed = await fetchJson(`${app.url}/api/sessions`);
+    expect(listed.sessions.some((session: any) => session.sessionId === created.session.sessionId)).toBe(true);
+  });
 });
 
 class FakeClipboard implements ClipboardIO {

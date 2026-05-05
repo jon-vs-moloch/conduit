@@ -7,6 +7,7 @@ import { MacClipboardIO, type ClipboardIO } from '../daemon/clipboard-io.js';
 import { getRunsRoot, getStateRoot } from '../state/paths.js';
 import { createSession, listSessions, revokeSession } from '../sessions/session-store.js';
 import { isPermissionProfileName } from '../sessions/profiles.js';
+import { renderAgentHandshake } from '../protocol/render-agent-handshake.js';
 
 export interface ControlPanelOptions {
   host?: string;
@@ -107,6 +108,38 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         transport
       });
       sendJson(res, 201, { session, starterEnvelope: createStarterEnvelope(session.sessionId, session.currentNonce) });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/agent-handshake') {
+      const body = await readJsonBody(req) as {
+        label?: unknown;
+        root?: unknown;
+        profile?: unknown;
+        transport?: unknown;
+        docsUrl?: unknown;
+        copy?: unknown;
+      };
+      const label = typeof body.label === 'string' && body.label.trim() ? body.label.trim() : 'Agent handshake';
+      const root = typeof body.root === 'string' && body.root.trim() ? body.root.trim() : process.cwd();
+      const profile = typeof body.profile === 'string' && isPermissionProfileName(body.profile) ? body.profile : 'read-only';
+      const transport = body.transport === 'extension' || body.transport === 'browser-yolo' || body.transport === 'api'
+        ? body.transport
+        : 'extension';
+      const session = await createSession({
+        label,
+        permissionProfile: profile,
+        allowedRoots: [root],
+        transport
+      });
+      const handshake = renderAgentHandshake({
+        session,
+        docsUrl: typeof body.docsUrl === 'string' && body.docsUrl.trim() ? body.docsUrl.trim() : undefined
+      });
+      if (body.copy !== false) {
+        await clipboard.write(handshake);
+      }
+      sendJson(res, 201, { session, handshake, copied: body.copy !== false });
       return;
     }
 
@@ -298,6 +331,7 @@ function renderAppHtml(): string {
         </div>
         <div class="toolbar">
           <button class="btn" id="refresh">Refresh</button>
+          <button class="btn" id="copyHandshake">Copy Agent Handshake</button>
           <button class="btn primary" id="checkClipboard">Check Clipboard Once</button>
         </div>
       </header>
@@ -456,6 +490,21 @@ $('checkClipboard').addEventListener('click', async () => {
   await refresh();
 });
 
+$('copyHandshake').addEventListener('click', async () => {
+  setStatus('Creating agent handshake...');
+  const result = await api('/api/agent-handshake', {
+    method: 'POST',
+    body: JSON.stringify({
+      label: 'Chat agent loop',
+      root: '${escapeJsString(process.cwd())}',
+      profile: 'read-only',
+      transport: 'extension'
+    })
+  });
+  setStatus(result.copied ? 'Agent handshake copied to clipboard.' : 'Agent handshake created.');
+  await refresh();
+});
+
 $('createSession').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
@@ -541,4 +590,8 @@ function escapeHtml(value: string): string {
     '"': '&quot;',
     "'": '&#39;'
   }[char] ?? char));
+}
+
+function escapeJsString(value: string): string {
+  return value.replace(/[\\'"]/g, (char) => `\\${char}`).replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 }

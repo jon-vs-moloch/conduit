@@ -81,6 +81,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         openItem.target = self
         menu.addItem(openItem)
 
+        let handshakeItem = NSMenuItem(title: "Copy Agent Handshake", action: #selector(copyAgentHandshake), keyEquivalent: "h")
+        handshakeItem.target = self
+        menu.addItem(handshakeItem)
+
         daemonToggleItem = NSMenuItem(
             title: daemon.isRunning ? "Stop Clipboard Daemon" : "Start Clipboard Daemon",
             action: #selector(toggleDaemon),
@@ -183,6 +187,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc private func copyAgentHandshake() {
+        if !controlApp.isRunning && !controlAppExternalAvailable {
+            startControlApp()
+        }
+
+        Task {
+            do {
+                let handshake = try await requestAgentHandshake()
+                await MainActor.run {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(handshake.handshake, forType: .string)
+                    refreshControlAppHealth()
+                }
+            } catch {
+                await MainActor.run {
+                    presentError("Could not copy the agent handshake.", error)
+                }
+            }
+        }
+    }
+
     @objc private func toggleDaemon() {
         if daemon.isRunning {
             daemon.stop()
@@ -233,6 +259,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshMenu()
     }
 
+    private func requestAgentHandshake() async throws -> AgentHandshakeResponse {
+        guard let url = URL(string: "http://127.0.0.1:47831/api/agent-handshake") else {
+            throw AppError("Invalid control app URL.")
+        }
+        let payload: [String: Any] = [
+            "label": "Chat agent loop",
+            "root": RepoLocator.repoRoot(),
+            "profile": "read-only",
+            "transport": "extension",
+            "copy": false
+        ]
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 5
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 201 else {
+            throw AppError(String(data: data, encoding: .utf8) ?? "Handshake request failed.")
+        }
+        return try JSONDecoder().decode(AgentHandshakeResponse.self, from: data)
+    }
+
     private func confirmTermination() -> Bool {
         let alert = NSAlert()
         alert.messageText = "Quit Conduit?"
@@ -265,6 +314,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert(error: error)
         alert.messageText = title
         alert.runModal()
+    }
+}
+
+struct AgentHandshakeResponse: Decodable {
+    let handshake: String
+}
+
+struct AppError: LocalizedError {
+    let message: String
+
+    init(_ message: String) {
+        self.message = message
+    }
+
+    var errorDescription: String? {
+        message
     }
 }
 

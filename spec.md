@@ -151,6 +151,34 @@ A session has:
 
 A clipboard request may auto-execute only if it belongs to a live trusted session and includes the expected nonce.
 
+### 3.3.1 Agent-Loop Handshake
+
+For chat and browser-extension transports, Conduit SHOULD provide a user-triggered handshake action that copies an introduction block to the clipboard.
+
+The handshake should include:
+
+- a short explanation of Conduit
+- a documentation URL
+- session id
+- one-shot nonce
+- transport
+- permission profile
+- allowed roots
+- request/result protocol instructions
+- an example `conduit` request
+
+The handshake is not itself executable. It teaches the chat agent how to emit future Conduit requests.
+
+The user gesture should be explicit, such as:
+
+```txt
+Copy Agent Handshake
+```
+
+This path is for an elevated paired agent-loop session. It is distinct from compliance-mode clipboard execution, which remains exact-envelope-only.
+
+The extension or browser transport MUST enforce the paired session and nonce before treating agent-loop requests as executable.
+
 ### 3.4 Capability
 
 A capability is a local permission to use a specific kind of tool.
@@ -853,6 +881,7 @@ Menu items:
 Conduit: Compliance Mode
 Start/Stop Control App
 Open Control Panel
+Copy Agent Handshake
 Start/Stop Clipboard Daemon
 Check for Updates...
 Result Ready

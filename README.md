@@ -112,6 +112,7 @@ Complete any human verification manually. Conduit should not automate or bypass 
 - local control app
 - macOS menu-bar app scaffold and local `.app` bundle staging
 - local update-manifest check path for the menu-bar app
+- agent-loop handshake generator for real chat tabs
 - static web presence under `website/`
 - session store and nonce primitives
 - policy engine with allow/review/confirm/deny decisions
@@ -132,6 +133,7 @@ Complete any human verification manually. Conduit should not automate or bypass 
 - Vitest coverage for `file.list`, `git.status`, `git.diff`, `file.write`, `file.patch`, and `shell.run`
 - Vitest end-to-end coverage for public CLI doctor/run/session flows
 - Vitest coverage for the macOS menu-bar package scaffold and update manifest
+- Vitest coverage for control-app agent handshake creation/copy
 - Vitest static-site coverage for download, about, and API pages
 
 High-risk tools are routed through the policy engine. `shell-manual` allows read/git tools automatically and requires confirmation for write/patch/shell actions; `--yes` approves those confirmation-required actions in local development flows.
@@ -182,6 +184,14 @@ open dist/macos/Conduit.app
 ```
 
 The menu-bar app starts the local control app and clipboard daemon by default, opens the control panel, stops supervised services on confirmed quit, and checks a local update manifest at `website/releases/conduit-appcast.json` unless `CONDUIT_UPDATE_MANIFEST_URL` is set.
+
+Agent-loop handshake:
+
+```txt
+Open Conduit menu bar app -> Copy Agent Handshake
+```
+
+Paste the copied handshake into a real ChatGPT tab to introduce Conduit, create a paired `extension` session, and give the model the initial `sessionId` and `nonce` for elevated agent-loop requests.
 
 Auth/browser troubleshooting has its own plan in [docs/auth-troubleshooting.md](docs/auth-troubleshooting.md).
 The principled browser-extension transport plan is in [docs/extension-transport-plan.md](docs/extension-transport-plan.md).

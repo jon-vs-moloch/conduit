@@ -880,6 +880,7 @@ Responsibilities:
 - start/stop daemon
 - start/stop local control app
 - open control panel
+- copy agent-loop handshake
 - show mode
 - show live sessions
 - show pending reviews
@@ -907,6 +908,16 @@ npm run macos:run
 ```
 
 The local preview stages `dist/macos/Conduit.app`, supervises the Node control app and clipboard daemon, and checks `website/releases/conduit-appcast.json` unless `CONDUIT_UPDATE_MANIFEST_URL` is set.
+
+Agent-loop handshake:
+
+```txt
+src/protocol/render-agent-handshake.ts
+POST /api/agent-handshake
+Copy Agent Handshake
+```
+
+The handshake creates an `extension` session and copies a self-contained introduction for a real chat tab. It includes session id, nonce, allowed roots, profile, docs URL, protocol rules, and an example request. This is not compliance-mode clipboard execution; it is the start of an elevated paired agent loop.
 
 ---
 

@@ -15,6 +15,9 @@ describe('macOS menu-bar package scaffold', () => {
     expect(main).toContain('startDaemon()');
     expect(main).toContain('startControlApp()');
     expect(main).toContain('applicationShouldTerminate');
+    expect(main).toContain('Copy Agent Handshake');
+    expect(main).toContain('/api/agent-handshake');
+    expect(main).toContain('NSPasteboard.general');
     expect(main).toContain('Quit and Stop Services');
     expect(main).toContain('Keep Running');
     expect(main).toContain('pkill');
