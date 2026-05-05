@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var controlToggleItem = NSMenuItem()
     private var daemonToggleItem = NSMenuItem()
     private var controlAppExternalAvailable = false
+    private var controlAppSupportsAgentHandshake = false
     private var healthTimer: Timer?
     private var terminationConfirmed = false
 
@@ -130,7 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return "running"
         }
         if controlAppExternalAvailable {
-            return "available"
+            return controlAppSupportsAgentHandshake ? "available" : "stale"
         }
         return controlApp.statusSummary
     }
@@ -140,7 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return "Stop Control App"
         }
         if controlAppExternalAvailable {
-            return "Control App Already Running"
+            return controlAppSupportsAgentHandshake ? "Control App Already Running" : "Control App Needs Restart"
         }
         return "Start Control App"
     }
@@ -152,14 +153,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         var request = URLRequest(url: url)
         request.timeoutInterval = 0.75
-        URLSession.shared.dataTask(with: request) { [weak self] _, response, _ in
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
             let available = (response as? HTTPURLResponse)?.statusCode == 200
+            let supportsAgentHandshake = data.flatMap { try? JSONDecoder().decode(ControlStatusResponse.self, from: $0) }?.capabilities.agentHandshake == true
             DispatchQueue.main.async {
                 guard let self else {
                     return
                 }
-                if self.controlAppExternalAvailable != available {
+                if self.controlAppExternalAvailable != available || self.controlAppSupportsAgentHandshake != supportsAgentHandshake {
                     self.controlAppExternalAvailable = available
+                    self.controlAppSupportsAgentHandshake = supportsAgentHandshake
                     self.refreshMenu()
                 }
                 completion?(available)
@@ -190,6 +193,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func copyAgentHandshake() {
         if !controlApp.isRunning && !controlAppExternalAvailable {
             startControlApp()
+        }
+        if controlAppExternalAvailable && !controlAppSupportsAgentHandshake {
+            presentError(
+                "Control app needs restart.",
+                AppError("A stale control app is already listening on port 47831 and does not support agent handshakes. Quit that process or restart Conduit from the current build.")
+            )
+            return
         }
 
         Task {
@@ -321,6 +331,14 @@ struct AgentHandshakeResponse: Decodable {
     let handshake: String
 }
 
+struct ControlStatusResponse: Decodable {
+    let capabilities: ControlCapabilities
+}
+
+struct ControlCapabilities: Decodable {
+    let agentHandshake: Bool?
+}
+
 struct AppError: LocalizedError {
     let message: String
 
@@ -423,13 +441,30 @@ final class ManagedProcess {
 
 enum ProcessTree {
     static func terminateChildren(of pid: Int32) {
+        for child in childPids(of: pid) {
+            terminateChildren(of: child)
+            kill(child, SIGTERM)
+        }
+    }
+
+    private static func childPids(of pid: Int32) -> [Int32] {
         let pkill = Process()
-        pkill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
-        pkill.arguments = ["-TERM", "-P", String(pid)]
-        pkill.standardOutput = FileHandle.nullDevice
+        let output = Pipe()
+        pkill.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        pkill.arguments = ["-P", String(pid)]
+        pkill.standardOutput = output
         pkill.standardError = FileHandle.nullDevice
-        try? pkill.run()
+        do {
+            try pkill.run()
+        } catch {
+            return []
+        }
         pkill.waitUntilExit()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        let text = String(data: data, encoding: .utf8) ?? ""
+        return text
+            .split(whereSeparator: \.isWhitespace)
+            .compactMap { Int32($0) }
     }
 }
 
@@ -443,6 +478,7 @@ enum ShellCommand {
         ].joined(separator: ":")
         return [
             "export PATH=\(quote(pathExports)):$PATH",
+            "export CONDUIT_PARENT_PID=\(quote(String(ProcessInfo.processInfo.processIdentifier)))",
             "export NVM_DIR=\"$HOME/.nvm\"",
             "[ -s \"$NVM_DIR/nvm.sh\" ] && . \"$NVM_DIR/nvm.sh\"",
             "cd \(quote(repoRoot))",

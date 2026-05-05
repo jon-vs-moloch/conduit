@@ -919,6 +919,8 @@ Quit
 
 The menu-bar app SHOULD supervise the daemon and control surface, but MUST NOT become the execution engine. Execution remains in the daemon/runtime layer.
 
+Supervised child services MUST have a deadman switch. If the menu-bar/tray parent process that launched them can no longer be observed, the control surface and daemon MUST stop themselves rather than continue executing in the background. A confirmed app quit MUST also terminate the supervised process tree.
+
 ### 15.4 App Updates
 
 The app SHOULD be update-aware even before full automatic replacement is implemented.

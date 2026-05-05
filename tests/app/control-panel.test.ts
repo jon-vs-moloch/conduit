@@ -41,7 +41,10 @@ describe('control panel app', () => {
       status: 'ok',
       mode: 'Compliance',
       exactEnvelopeParsing: true,
-      embeddedBlockParsing: false
+      embeddedBlockParsing: false,
+      capabilities: {
+        agentHandshake: true
+      }
     });
   });
 

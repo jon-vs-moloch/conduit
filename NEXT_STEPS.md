@@ -435,6 +435,7 @@ Behavior:
 - starts/stops `npm run conduit -- daemon start --interval-ms 1000`
 - starts both supervised services by default when the menu-bar app launches
 - asks for confirmation before quitting and stopping supervised services
+- passes a parent PID deadman switch to supervised services, so they exit if the menu-bar app disappears
 - checks a local update manifest by default
 - allows `CONDUIT_UPDATE_MANIFEST_URL` to point at a future hosted manifest
 - copies a fresh agent-loop handshake into the clipboard for real ChatGPT tab testing

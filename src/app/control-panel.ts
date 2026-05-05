@@ -78,7 +78,13 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         stateRoot: getStateRoot(),
         exactEnvelopeParsing: true,
         embeddedBlockParsing: false,
-        clipboardWatcher: 'available'
+        clipboardWatcher: 'available',
+        capabilities: {
+          agentHandshake: true,
+          clipboardCheck: true,
+          sessions: true,
+          runs: true
+        }
       });
       return;
     }

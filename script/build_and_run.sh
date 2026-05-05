@@ -8,7 +8,8 @@ APP_NAME="Conduit"
 BUNDLE_ID="app.conduit.local"
 DIST_DIR="$ROOT/dist/macos"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
-EXECUTABLE="$PACKAGE_DIR/.build/debug/$PRODUCT"
+SWIFT_BUILD_DIR="${CONDUIT_SWIFT_BUILD_DIR:-${TMPDIR:-/tmp}/conduit-menubar-build}"
+EXECUTABLE="$SWIFT_BUILD_DIR/debug/$PRODUCT"
 
 MODE="${1:-}"
 
@@ -67,7 +68,7 @@ verify_launch() {
 }
 
 stop_existing
-swift build --package-path "$PACKAGE_DIR"
+swift build --package-path "$PACKAGE_DIR" --scratch-path "$SWIFT_BUILD_DIR"
 stage_bundle
 
 case "$MODE" in

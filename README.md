@@ -187,7 +187,7 @@ npm run macos:build
 open dist/macos/Conduit.app
 ```
 
-The menu-bar app starts the local control app and clipboard daemon by default, opens the control panel, stops supervised services on confirmed quit, and checks a local update manifest at `website/releases/conduit-appcast.json` unless `CONDUIT_UPDATE_MANIFEST_URL` is set.
+The menu-bar app starts the local control app and clipboard daemon by default, opens the control panel, stops supervised services on confirmed quit, and checks a local update manifest at `website/releases/conduit-appcast.json` unless `CONDUIT_UPDATE_MANIFEST_URL` is set. Supervised services also watch the menu-bar parent process and exit if it disappears.
 
 Agent-loop handshake:
 

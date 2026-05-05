@@ -26,17 +26,21 @@ describe('macOS menu-bar package scaffold', () => {
     expect(main).toContain('Logs/Conduit');
     expect(main).toContain('/api/status');
     expect(main).toContain('Control App Already Running');
+    expect(main).toContain('Control App Needs Restart');
+    expect(main).toContain('agentHandshake');
     expect(main).toContain('standardOutput = handle');
     expect(main).toContain('standardError = handle');
     expect(main).toContain('/bin/zsh');
     expect(main).toContain('nvm.sh');
     expect(main).toContain('exec \\(command)');
+    expect(main).toContain('CONDUIT_PARENT_PID');
     expect(main).toContain('/opt/homebrew/bin');
     expect(main).toContain('CONDUIT_UPDATE_MANIFEST_URL');
     expect(main).toContain('CONDUIT_REPO_ROOT');
 
     const script = await readText('script/build_and_run.sh');
-    expect(script).toContain('swift build --package-path "$PACKAGE_DIR"');
+    expect(script).toContain('SWIFT_BUILD_DIR="${CONDUIT_SWIFT_BUILD_DIR:-${TMPDIR:-/tmp}/conduit-menubar-build}"');
+    expect(script).toContain('swift build --package-path "$PACKAGE_DIR" --scratch-path "$SWIFT_BUILD_DIR"');
     expect(script).toContain('LSUIElement');
     expect(script).toContain('CONDUIT_REPO_ROOT="$ROOT" /usr/bin/open -n "$APP_BUNDLE"');
   });

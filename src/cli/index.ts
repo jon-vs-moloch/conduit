@@ -17,8 +17,10 @@ import { createSession, listSessions, revokeSession } from '../sessions/session-
 import { isPermissionProfileName } from '../sessions/profiles.js';
 import { runClipboardDaemon } from '../daemon/daemon.js';
 import { startControlPanel } from '../app/control-panel.js';
+import { startParentWatchdogFromEnv } from './parent-watchdog.js';
 
 const program = new Command();
+startParentWatchdogFromEnv();
 
 program
   .name('conduit')
