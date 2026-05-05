@@ -75,7 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             keyEquivalent: ""
         )
         controlToggleItem.target = self
-        controlToggleItem.isEnabled = controlApp.isRunning || !controlAppExternalAvailable
+        controlToggleItem.isEnabled = controlAppToggleEnabled()
         menu.addItem(controlToggleItem)
 
         let openItem = NSMenuItem(title: "Open Control Panel", action: #selector(openControlPanel), keyEquivalent: "o")
@@ -122,7 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func refreshMenu() {
         statusMenuItem.title = statusTitle()
         controlToggleItem.title = controlAppToggleTitle()
-        controlToggleItem.isEnabled = controlApp.isRunning || !controlAppExternalAvailable
+        controlToggleItem.isEnabled = controlAppToggleEnabled()
         daemonToggleItem.title = daemon.isRunning ? "Stop Clipboard Daemon" : "Start Clipboard Daemon"
     }
 
@@ -144,6 +144,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return controlAppSupportsAgentHandshake ? "Control App Already Running" : "Control App Needs Restart"
         }
         return "Start Control App"
+    }
+
+    private func controlAppToggleEnabled() -> Bool {
+        controlApp.isRunning || !controlAppExternalAvailable || !controlAppSupportsAgentHandshake
     }
 
     private func refreshControlAppHealth(completion: ((Bool) -> Void)? = nil) {
@@ -173,6 +177,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleControlApp() {
         if controlApp.isRunning {
             controlApp.stop()
+        } else if controlAppExternalAvailable && !controlAppSupportsAgentHandshake {
+            restartStaleControlApp()
         } else if controlAppExternalAvailable {
             openControlPanel()
         } else {
@@ -195,10 +201,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             startControlApp()
         }
         if controlAppExternalAvailable && !controlAppSupportsAgentHandshake {
-            presentError(
-                "Control app needs restart.",
-                AppError("A stale control app is already listening on port 47831 and does not support agent handshakes. Quit that process or restart Conduit from the current build.")
-            )
+            restartStaleControlApp { [weak self] restarted in
+                guard restarted else {
+                    return
+                }
+                self?.copyAgentHandshake()
+            }
             return
         }
 
@@ -258,6 +266,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             presentError("Could not start the control app.", error)
         }
         refreshMenu()
+    }
+
+    private func restartStaleControlApp(completion: ((Bool) -> Void)? = nil) {
+        do {
+            let pids = try PortListeners.listenerPids(on: 47831)
+            if pids.isEmpty {
+                controlAppExternalAvailable = false
+                controlAppSupportsAgentHandshake = false
+                startControlApp()
+                waitForControlAppHealth(completion: completion)
+                return
+            }
+            let unexpectedPids = pids.filter { !PortListeners.isConduitControlListener(pid: $0, repoRoot: RepoLocator.repoRoot()) }
+            if !unexpectedPids.isEmpty {
+                throw AppError("Port 47831 is in use by a non-Conduit process: \(unexpectedPids.map { String($0) }.joined(separator: ", ")).")
+            }
+
+            for pid in pids {
+                ProcessTree.terminateTree(of: pid)
+            }
+            refreshMenu()
+            waitForControlPortToClear {
+                self.controlAppExternalAvailable = false
+                self.controlAppSupportsAgentHandshake = false
+                self.startControlApp()
+                self.waitForControlAppHealth(completion: completion)
+            }
+        } catch {
+            presentError("Could not restart the control app.", error)
+            completion?(false)
+        }
+    }
+
+    private func waitForControlPortToClear(completion: @escaping () -> Void) {
+        DispatchQueue.global(qos: .utility).async {
+            for _ in 0..<30 {
+                if (try? PortListeners.listenerPids(on: 47831).isEmpty) == true {
+                    break
+                }
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+            DispatchQueue.main.async(execute: completion)
+        }
+    }
+
+    private func waitForControlAppHealth(attemptsRemaining: Int = 30, completion: ((Bool) -> Void)?) {
+        refreshControlAppHealth { [weak self] available in
+            guard let self else {
+                completion?(false)
+                return
+            }
+            if available && self.controlAppSupportsAgentHandshake {
+                completion?(true)
+                return
+            }
+            guard attemptsRemaining > 0 else {
+                completion?(false)
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.waitForControlAppHealth(attemptsRemaining: attemptsRemaining - 1, completion: completion)
+            }
+        }
     }
 
     private func startDaemon() {
@@ -440,10 +511,14 @@ final class ManagedProcess {
 }
 
 enum ProcessTree {
+    static func terminateTree(of pid: Int32) {
+        terminateChildren(of: pid)
+        kill(pid, SIGTERM)
+    }
+
     static func terminateChildren(of pid: Int32) {
         for child in childPids(of: pid) {
-            terminateChildren(of: child)
-            kill(child, SIGTERM)
+            terminateTree(of: child)
         }
     }
 
@@ -465,6 +540,48 @@ enum ProcessTree {
         return text
             .split(whereSeparator: \.isWhitespace)
             .compactMap { Int32($0) }
+    }
+}
+
+enum PortListeners {
+    static func listenerPids(on port: Int) throws -> [Int32] {
+        let lsof = Process()
+        let output = Pipe()
+        lsof.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+        lsof.arguments = ["-nP", "-t", "-iTCP:\(port)", "-sTCP:LISTEN"]
+        lsof.standardOutput = output
+        lsof.standardError = FileHandle.nullDevice
+        try lsof.run()
+        lsof.waitUntilExit()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        let text = String(data: data, encoding: .utf8) ?? ""
+        return text
+            .split(whereSeparator: \.isWhitespace)
+            .compactMap { Int32($0) }
+    }
+
+    static func isConduitControlListener(pid: Int32, repoRoot: String) -> Bool {
+        let command = commandLine(for: pid)
+        return command.contains("src/cli/index.ts app start")
+            || command.contains("dist/cli/index.js app start")
+            || (command.contains(repoRoot) && command.contains("app start --port 47831"))
+    }
+
+    private static func commandLine(for pid: Int32) -> String {
+        let ps = Process()
+        let output = Pipe()
+        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
+        ps.arguments = ["-p", String(pid), "-o", "command="]
+        ps.standardOutput = output
+        ps.standardError = FileHandle.nullDevice
+        do {
+            try ps.run()
+        } catch {
+            return ""
+        }
+        ps.waitUntilExit()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8) ?? ""
     }
 }
 

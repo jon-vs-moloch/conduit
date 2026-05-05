@@ -28,6 +28,9 @@ describe('macOS menu-bar package scaffold', () => {
     expect(main).toContain('Control App Already Running');
     expect(main).toContain('Control App Needs Restart');
     expect(main).toContain('agentHandshake');
+    expect(main).toContain('restartStaleControlApp');
+    expect(main).toContain('listenerPids(on: 47831)');
+    expect(main).toContain('isConduitControlListener');
     expect(main).toContain('standardOutput = handle');
     expect(main).toContain('standardError = handle');
     expect(main).toContain('/bin/zsh');
