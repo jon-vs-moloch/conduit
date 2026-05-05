@@ -74,10 +74,10 @@ Interpretation:
 - `tabStatusCount === 0`: no ChatGPT content script has reported in. Reload the unpacked extension from `chrome://extensions/`, then reload the ChatGPT tab.
 - `lastTabStatus.url`: the latest ChatGPT tab that reported the content script alive.
 - `outboundQueued > 0`: the extension has not picked up the next harness message yet.
-- `deliveredOutboundCount` increased but `pendingSendResults > 0`: the content script has accepted an outbound message and is still trying to insert/send it.
+- `deliveredOutboundCount` increased but `pendingSendResults > 0`: the content script has accepted an outbound message and is still trying to insert/send it. The listener can continue processing inbound protocol blocks while this confirmation remains pending.
 - `lastTabStatus.status` beginning with `outbound_`: the content script is reporting its current send stage, such as composer insertion, send-button wait, or commit verification.
 - `lastTransportError`: the local runtime gave up waiting for the extension to confirm a send. Reload the unpacked extension and ChatGPT tab, then retry.
-- `lastSendResult.status === "failed"`: the runtime should stop or retry based on the reported browser send failure instead of waiting for ChatGPT.
+- `lastSendResult.status === "failed"`: the content script could not insert/send the outbound message. The error is telemetry; the persistent listener remains alive for later inbound blocks.
 - `lastSendResult.status === "sent"`: the runtime has confirmed the outbound message was committed to the conversation.
 
 ## Next Steps for Development

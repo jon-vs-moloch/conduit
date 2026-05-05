@@ -21,6 +21,7 @@ interface OutboundDelivery {
   transportId: string;
   message: string;
   createdAt: string;
+  markDelivered: () => void;
 }
 
 interface ExtensionSendResultPayload {
@@ -129,7 +130,10 @@ export class ExtensionTransport implements ModelTransport {
     const delivery = this.createOutboundDelivery(message);
     console.log(`[ExtensionTransport] outbound ${delivery.transportId} queued chars=${delivery.message.length}`);
 
-    const sendResult = this.waitForSendResult(delivery.transportId);
+    this.trackSendResult(delivery.transportId);
+    const delivered = new Promise<void>((resolve) => {
+      delivery.markDelivered = resolve;
+    });
     const pendingResponse = this.pendingOutboundResponses.shift();
     if (pendingResponse) {
       this.deliverOutbound(pendingResponse, delivery);
@@ -137,7 +141,7 @@ export class ExtensionTransport implements ModelTransport {
       this.outboundQueue.push(delivery);
     }
 
-    await sendResult;
+    await delivered;
   }
 
   async waitForAssistantTurn(options?: WaitOptions): Promise<AssistantTurn> {
@@ -294,30 +298,28 @@ export class ExtensionTransport implements ModelTransport {
         `Conduit transport id: ${transportId}`,
         '',
         message
-      ].join('\n')
+      ].join('\n'),
+      markDelivered: () => {}
     };
   }
 
-  private waitForSendResult(transportId: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pendingSendResults.delete(transportId);
-        const error = new Error(`Timed out waiting for extension to confirm outbound ${transportId} was sent.`);
-        this.lastTransportError = {
-          transportId,
-          status: 'timeout',
-          error: error.message,
-          observedAt: new Date().toISOString()
-        };
-        this.lastSendResult = this.lastTransportError;
-        reject(error);
-      }, SEND_RESULT_TIMEOUT_MS);
-      this.pendingSendResults.set(transportId, {
-        resolve,
-        reject,
-        timeout,
-        createdAt: new Date().toISOString()
-      });
+  private trackSendResult(transportId: string): void {
+    const timeout = setTimeout(() => {
+      this.pendingSendResults.delete(transportId);
+      const error = `Timed out waiting for extension to confirm outbound ${transportId} was sent.`;
+      this.lastTransportError = {
+        transportId,
+        status: 'timeout',
+        error,
+        observedAt: new Date().toISOString()
+      };
+      this.lastSendResult = this.lastTransportError;
+    }, SEND_RESULT_TIMEOUT_MS);
+    this.pendingSendResults.set(transportId, {
+      resolve: () => {},
+      reject: () => {},
+      timeout,
+      createdAt: new Date().toISOString()
     });
   }
 
@@ -353,6 +355,7 @@ export class ExtensionTransport implements ModelTransport {
     this.deliveredOutboundCount += 1;
     this.lastOutboundAt = new Date().toISOString();
     console.log(`[ExtensionTransport] outbound ${delivery.transportId} delivered-to-extension chars=${delivery.message.length}`);
+    delivery.markDelivered();
     sendJson(res, 200, {
       type: 'harness_message',
       transportId: delivery.transportId,

@@ -114,27 +114,52 @@ describe('ExtensionTransport', () => {
     });
   });
 
-  it('rejects sendMessage when extension reports a failed send', async () => {
+  it('keeps listening after outbound delivery even before send confirmation', async () => {
     const send = transport.sendMessage('hello ChatGPT');
-    const handledSend = send.then(
-      () => null,
-      (error: unknown) => error
-    );
 
     const response = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
     const outbound = await response.json() as OutboundPollResponse;
+    expect(outbound.transportId).toBe('out-1');
+    await expect(send).resolves.toBeUndefined();
+
+    const payload = [
+      '```conduit-final',
+      '{ "status": "complete", "summary": "Done." }',
+      '```'
+    ].join('\n');
+    await postJson(`${transport.getBaseUrl()}/api/conduit-call`, {
+      payload,
+      kind: 'conduit-final',
+      key: 'final-after-outbound'
+    });
+
+    await expect(transport.waitForAssistantTurn({ timeoutMs: 100 })).resolves.toMatchObject({
+      text: payload
+    });
+
+    const health = await fetch(`${transport.getBaseUrl()}/health`);
+    await expect(health.json()).resolves.toMatchObject({
+      pendingSendResults: 1,
+      pendingSendResultIds: [outbound.transportId]
+    });
+  });
+
+  it('records failed send results without rejecting delivered messages', async () => {
+    const send = transport.sendMessage('hello ChatGPT');
+
+    const response = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
+    const outbound = await response.json() as OutboundPollResponse;
+    await expect(send).resolves.toBeUndefined();
+
     await postJson(`${transport.getBaseUrl()}/api/conduit-send-result`, {
       transportId: outbound.transportId,
       status: 'failed',
       error: 'Timed out waiting for send button'
     });
 
-    await expect(handledSend).resolves.toMatchObject({
-      message: expect.stringMatching(/Timed out waiting for send button/)
-    });
-
     const health = await fetch(`${transport.getBaseUrl()}/health`);
     await expect(health.json()).resolves.toMatchObject({
+      pendingSendResults: 0,
       lastTransportError: {
         transportId: outbound.transportId,
         status: 'failed',
