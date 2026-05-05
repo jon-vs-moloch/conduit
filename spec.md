@@ -911,6 +911,22 @@ It owns:
 - panic switch
 - YOLO / Idiot Mode toggles
 
+Confirmation-required actions SHOULD be represented as durable local approval
+requests visible in the app. The approval view SHOULD show at least:
+
+- requested tool
+- action id
+- action args
+- model-provided reason
+- policy reason
+- session id
+- run id
+- project root
+
+Approving an action allows that single pending action to continue. Denying it
+returns a denied tool result. Approval records MUST NOT broaden the session
+profile, grant future approvals, or bypass hard-deny checks.
+
 ### 15.2 Minimal Control Panel
 
 ```txt

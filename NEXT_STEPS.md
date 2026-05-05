@@ -54,6 +54,7 @@ Current state:
   - allowed-root checks
   - sensitive file read denial
   - action-count budget denial
+  - confirmation-required actions can create shared approval requests for the control app
 - Shared action execution is implemented:
   - `src/runtime/execute-actions.ts`
   - run/listen loops route actions through policy
@@ -90,6 +91,7 @@ Current state:
   - session create/revoke UI
   - recent runs UI
   - clipboard check-once action
+  - approvals UI for confirmation-required actions
 - Local macOS menu-bar app scaffold is implemented:
   - `macos/ConduitMenuBar/Package.swift`
   - `macos/ConduitMenuBar/Sources/ConduitMenuBar/main.swift`
@@ -235,7 +237,7 @@ src/runtime/run-loop.ts
 src/runtime/listen-loop.ts
 ```
 
-Both now call the shared executor, which logs `policy-decisions.jsonl` and routes denies/confirmations through tool results.
+Both now call the shared executor, which logs `policy-decisions.jsonl` and routes denies/confirmations through tool results. Interactive CLI runs use a terminal prompt; non-interactive service runs create approval records under the Conduit state directory for the local control app to approve or deny.
 
 ## Completed Gate: Request Executor Core
 
@@ -466,7 +468,7 @@ The app should own consent and visibility:
 - obvious warning when any embedded-block parser setting is enabled
 - session list with labels, profiles, roots, current state, and revoke action
 - recent runs list with status, source, actions, and log path
-- pending confirmation dialog for write/patch/shell actions
+- signed/notarized distribution and real update replacement
 - copy/view latest result
 - settings for clipboard watcher polling and exact-envelope behavior
 

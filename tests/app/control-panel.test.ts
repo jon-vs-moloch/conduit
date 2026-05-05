@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { startControlPanel, type ControlPanelHandle } from '../../src/app/control-panel.js';
+import { createApprovalRequest } from '../../src/approvals/approval-store.js';
 import type { ClipboardIO } from '../../src/daemon/clipboard-io.js';
 import { createSession } from '../../src/sessions/session-store.js';
 
@@ -43,7 +44,8 @@ describe('control panel app', () => {
       exactEnvelopeParsing: true,
       embeddedBlockParsing: false,
       capabilities: {
-        agentHandshake: true
+        agentHandshake: true,
+        approvals: true
       }
     });
   });
@@ -100,6 +102,39 @@ describe('control panel app', () => {
 
     const runs = await fetchJson(`${app.url}/api/runs`);
     expect(runs.runs.length).toBeGreaterThan(0);
+  });
+
+  it('lists and resolves pending approval requests through the API', async () => {
+    const approval = await createApprovalRequest({
+      action: {
+        id: 'write_notes',
+        tool: 'file.write',
+        args: { path: 'notes.txt', content: 'hello' },
+        reason: 'Persist notes.',
+        risk: 'high'
+      },
+      policyReason: 'Tool requires confirmation: file.write',
+      prompt: 'Allow?'
+    });
+
+    const listed = await fetchJson(`${app.url}/api/approvals`);
+    expect(listed.approvals[0]).toMatchObject({
+      approvalId: approval.approvalId,
+      status: 'pending',
+      action: {
+        tool: 'file.write'
+      }
+    });
+
+    const approved = await fetchJson(`${app.url}/api/approvals/${approval.approvalId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: 'Approved in test.' })
+    });
+    expect(approved.approval).toMatchObject({
+      approvalId: approval.approvalId,
+      status: 'approved',
+      decisionReason: 'Approved in test.'
+    });
   });
 
   it('creates and copies an agent-loop handshake through the API', async () => {

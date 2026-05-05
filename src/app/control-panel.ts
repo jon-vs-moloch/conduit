@@ -8,6 +8,7 @@ import { getRunsRoot, getStateRoot } from '../state/paths.js';
 import { createSession, listSessions, revokeSession } from '../sessions/session-store.js';
 import { isPermissionProfileName } from '../sessions/profiles.js';
 import { renderAgentHandshake } from '../protocol/render-agent-handshake.js';
+import { listApprovalRequests, resolveApprovalRequest } from '../approvals/approval-store.js';
 
 export interface ControlPanelOptions {
   host?: string;
@@ -82,6 +83,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         capabilities: {
           agentHandshake: true,
           clipboardCheck: true,
+          approvals: true,
           sessions: true,
           runs: true
         }
@@ -157,6 +159,24 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
 
     if (req.method === 'GET' && url.pathname === '/api/runs') {
       sendJson(res, 200, { runs: await listRuns() });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/approvals') {
+      sendJson(res, 200, { approvals: await listApprovalRequests() });
+      return;
+    }
+
+    const approvalMatch = url.pathname.match(/^\/api\/approvals\/([^/]+)\/(approve|deny)$/);
+    if (req.method === 'POST' && approvalMatch?.[1] && approvalMatch?.[2]) {
+      const body = await readJsonBody(req) as { reason?: unknown };
+      const decision = approvalMatch[2] === 'approve' ? 'approved' : 'denied';
+      const approval = await resolveApprovalRequest(
+        decodeURIComponent(approvalMatch[1]),
+        decision,
+        typeof body.reason === 'string' ? body.reason : undefined
+      );
+      sendJson(res, 200, { approval });
       return;
     }
 
@@ -303,7 +323,7 @@ function renderAppHtml(): string {
     @media (max-width: 820px) {
       .shell { grid-template-columns: 1fr; }
       aside { border-right: 0; border-bottom: 1px solid var(--border); }
-      nav { grid-template-columns: repeat(3, 1fr); }
+      nav { grid-template-columns: repeat(4, 1fr); }
       main { padding: 20px; }
       header { display: block; }
       .toolbar { margin-top: 12px; }
@@ -320,6 +340,7 @@ function renderAppHtml(): string {
       <nav>
         <button class="active" data-view="overview">Overview</button>
         <button data-view="sessions">Sessions</button>
+        <button data-view="approvals">Approvals</button>
         <button data-view="runs">Runs</button>
       </nav>
     </aside>
@@ -368,6 +389,12 @@ function renderAppHtml(): string {
           <div class="panel-body"><pre id="starterEnvelope"></pre></div>
         </div>
       </section>
+      <section id="approvalsView" class="hidden">
+        <div class="panel">
+          <div class="panel-head"><h2>Pending Approvals</h2></div>
+          <div class="panel-body" id="approvalsTable"></div>
+        </div>
+      </section>
       <section id="runsView" class="hidden">
         <div class="panel">
           <div class="panel-head"><h2>Recent Runs</h2></div>
@@ -388,7 +415,7 @@ function renderAppHtml(): string {
 
 function renderAppJs(): string {
   return `
-const state = { status: null, sessions: [], runs: [], view: 'overview' };
+const state = { status: null, sessions: [], approvals: [], runs: [], view: 'overview' };
 const $ = (id) => document.getElementById(id);
 
 async function api(path, options = {}) {
@@ -404,13 +431,15 @@ async function api(path, options = {}) {
 function setStatus(text) { $('appStatus').textContent = text || ''; }
 
 async function refresh() {
-  const [status, sessions, runs] = await Promise.all([
+  const [status, sessions, approvals, runs] = await Promise.all([
     api('/api/status'),
     api('/api/sessions'),
+    api('/api/approvals'),
     api('/api/runs')
   ]);
   state.status = status;
   state.sessions = sessions.sessions;
+  state.approvals = approvals.approvals;
   state.runs = runs.runs;
   render();
 }
@@ -421,6 +450,7 @@ function render() {
   $('mode').textContent = state.status?.mode || 'Compliance';
   $('statusJson').textContent = JSON.stringify(state.status, null, 2);
   renderSessions();
+  renderApprovals();
   renderRuns();
 }
 
@@ -436,6 +466,22 @@ function renderSessions() {
       '<td>' + escapeHtml((session.allowedRoots || []).join(', ')) + '</td>' +
       '<td><code>' + escapeHtml(session.currentNonce) + '</code></td>' +
       '<td><button class="btn danger" data-revoke="' + encodeURIComponent(session.sessionId) + '">Revoke</button></td>' +
+    '</tr>').join('') + '</tbody></table>';
+}
+
+function renderApprovals() {
+  const pending = state.approvals.filter((approval) => approval.status === 'pending');
+  if (pending.length === 0) {
+    $('approvalsTable').innerHTML = '<div class="empty">No pending approvals.</div>';
+    return;
+  }
+  $('approvalsTable').innerHTML = '<table><thead><tr><th>Action</th><th>Reason</th><th>Args</th><th></th></tr></thead><tbody>' +
+    pending.map((approval) => '<tr>' +
+      '<td><strong>' + escapeHtml(approval.action?.tool || '') + '</strong><br><span class="subtle">' + escapeHtml(approval.approvalId) + '</span></td>' +
+      '<td>' + escapeHtml(approval.action?.reason || '(none provided)') + '<br><span class="subtle">' + escapeHtml(approval.policyReason || '') + '</span></td>' +
+      '<td><pre>' + escapeHtml(JSON.stringify(approval.action?.args || {}, null, 2)) + '</pre></td>' +
+      '<td><button class="btn primary" data-approve="' + encodeURIComponent(approval.approvalId) + '">Approve</button> ' +
+      '<button class="btn danger" data-deny="' + encodeURIComponent(approval.approvalId) + '">Deny</button></td>' +
     '</tr>').join('') + '</tbody></table>';
 }
 
@@ -456,7 +502,7 @@ function renderRuns() {
 
 function setView(view) {
   state.view = view;
-  for (const id of ['overview', 'sessions', 'runs']) {
+  for (const id of ['overview', 'sessions', 'approvals', 'runs']) {
     $(id + 'View').classList.toggle('hidden', id !== view);
     document.querySelector('[data-view="' + id + '"]').classList.toggle('active', id === view);
   }
@@ -471,6 +517,26 @@ document.addEventListener('click', async (event) => {
   if (revoke) {
     await api('/api/sessions/' + revoke + '/revoke', { method: 'POST' });
     setStatus('Session revoked.');
+    await refresh();
+  }
+
+  const approve = event.target.dataset?.approve;
+  if (approve) {
+    await api('/api/approvals/' + approve + '/approve', {
+      method: 'POST',
+      body: JSON.stringify({ reason: 'Approved from Conduit Control.' })
+    });
+    setStatus('Action approved.');
+    await refresh();
+  }
+
+  const deny = event.target.dataset?.deny;
+  if (deny) {
+    await api('/api/approvals/' + deny + '/deny', {
+      method: 'POST',
+      body: JSON.stringify({ reason: 'Denied from Conduit Control.' })
+    });
+    setStatus('Action denied.');
     await refresh();
   }
 

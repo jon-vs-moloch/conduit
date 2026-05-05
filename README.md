@@ -14,6 +14,7 @@ It is a local runtime plus transports:
 - a browser-extension bridge for paired ChatGPT agent loops
 - a local control panel for sessions, starter envelopes, clipboard checks, and
   handshake generation
+- shared approval requests for write, patch, and shell actions
 - a TypeScript CLI/runtime with policy-routed local tools
 
 ## Quick Start
@@ -204,6 +205,19 @@ If `lastTabStatus.status` starts with `outbound_`, the content script is
 reporting its current browser-send stage, such as composer insertion, send
 button wait, or commit verification.
 
+## Approvals
+
+Read-only tools can run automatically under read-oriented profiles. Write,
+patch, and shell actions are confirmation-gated by profile:
+
+- `edit-with-confirmation`: confirms `file.write` and `file.patch`; denies shell
+- `shell-manual`: confirms `file.write`, `file.patch`, and `shell.run`
+
+Interactive CLI runs ask in the terminal. Menu-bar/daemon/listener runs create a
+pending approval in shared state and wait for the local control app. Open the
+control panel and use the **Approvals** tab to inspect action, reason, policy,
+and args before approving or denying.
+
 ## Tools And Policy
 
 Implemented tools:
@@ -234,6 +248,7 @@ Working locally:
 - local control panel
 - macOS menu-bar app bundle staging
 - supervised app/control/listener/daemon lifecycle
+- control-panel approvals for confirmation-required actions
 - local update-manifest check path
 - Chrome/Brave unpacked extension bridge
 - paired-session nonce enforcement for extension agent loops
@@ -254,7 +269,6 @@ Still not production-ready:
 - hosted release downloads
 - extension popup/status UI
 - robust tab discard/throttle detection
-- polished approval UI
 - a simpler small-model-friendly request schema
 - comprehensive live ChatGPT extension tests
 

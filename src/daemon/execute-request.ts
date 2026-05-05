@@ -1,5 +1,6 @@
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
+import type { ConfirmationRequest } from '../approvals/approval-store.js';
 import { parseClipboardEnvelope } from '../protocol/parse-clipboard-envelope.js';
 import { renderConduitRepair, renderConduitResults, type ConduitRepairEnvelope } from '../protocol/render-results.js';
 import { classifyRepairCode, createRepairEnvelope } from '../protocol/repair.js';
@@ -15,7 +16,7 @@ export type ExecuteRequestStatus = 'executed' | 'ignored' | 'rejected';
 export interface ExecuteRequestInput {
   text: string;
   yes?: boolean;
-  confirm?: (prompt: string) => Promise<boolean>;
+  confirm?: (request: ConfirmationRequest) => Promise<boolean>;
 }
 
 export interface ExecuteRequestOutput {

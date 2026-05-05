@@ -1,4 +1,5 @@
 import readline from 'node:readline';
+import { requestStoredApproval, type ConfirmationRequest } from '../approvals/approval-store.js';
 import type { PolicyDecision } from '../policy/policy-engine.js';
 import { evaluateActionPolicy } from '../policy/policy-engine.js';
 import type { ToolAction, ToolResult } from '../protocol/schemas.js';
@@ -15,13 +16,13 @@ export interface ExecuteActionsInput {
   turn: number;
   yes?: boolean;
   policySession?: ConduitSession;
-  confirm?: (prompt: string) => Promise<boolean>;
+  confirm?: (request: ConfirmationRequest) => Promise<boolean>;
 }
 
 export async function executeActions(input: ExecuteActionsInput): Promise<ToolResult[]> {
   const results: ToolResult[] = [];
   const policySession = input.policySession ?? createEphemeralPolicySession(input.projectRoot);
-  const confirm = input.confirm ?? askConfirmation;
+  const confirm = input.confirm ?? defaultConfirmation;
 
   for (const action of input.actions) {
     await appendJsonl(input.runDir, 'actions.jsonl', {
@@ -42,7 +43,14 @@ export async function executeActions(input: ExecuteActionsInput): Promise<ToolRe
       timestamp: new Date().toISOString()
     });
 
-    const policyResult = await handlePolicyDecision(action, policyDecision, input.yes, confirm);
+    const policyResult = await handlePolicyDecision(action, policyDecision, {
+      yes: input.yes,
+      confirm,
+      runId: input.runId,
+      runDir: input.runDir,
+      projectRoot: input.projectRoot,
+      sessionId: policySession.sessionId
+    });
     if (policyResult) {
       results.push(policyResult);
       continue;
@@ -76,26 +84,41 @@ export async function executeActions(input: ExecuteActionsInput): Promise<ToolRe
 async function handlePolicyDecision(
   action: ToolAction,
   decision: PolicyDecision,
-  yes: boolean | undefined,
-  confirm: (prompt: string) => Promise<boolean>
+  input: {
+    yes?: boolean;
+    confirm: (request: ConfirmationRequest) => Promise<boolean>;
+    runId: string;
+    runDir: string;
+    projectRoot: string;
+    sessionId?: string;
+  }
 ): Promise<ToolResult | null> {
   if (decision.decision === 'allow') {
     return null;
   }
 
   if (decision.decision === 'requires_confirmation') {
-    if (yes) {
+    if (input.yes) {
       return null;
     }
 
-    const confirmed = await confirm([
+    const prompt = [
       '',
       `[Conduit] The assistant requests to run ${action.tool}.`,
       `Reason: ${action.reason ?? '(none provided)'}`,
       `Policy: ${decision.reason}`,
       `Args: ${JSON.stringify(action.args)}`,
       'Allow this action? (y/N): '
-    ].join('\n'));
+    ].join('\n');
+    const confirmed = await input.confirm({
+      action,
+      policyReason: decision.reason,
+      prompt,
+      runId: input.runId,
+      runDir: input.runDir,
+      projectRoot: input.projectRoot,
+      sessionId: input.sessionId
+    });
     if (confirmed) {
       return null;
     }
@@ -130,13 +153,20 @@ function createEphemeralPolicySession(projectRoot: string): ConduitSession {
   };
 }
 
-function askConfirmation(prompt: string): Promise<boolean> {
+function defaultConfirmation(request: ConfirmationRequest): Promise<boolean> {
+  if (process.stdin.isTTY && process.stdout.isTTY) {
+    return askConfirmation(request);
+  }
+  return requestStoredApproval(request);
+}
+
+function askConfirmation(request: ConfirmationRequest): Promise<boolean> {
   return new Promise((resolve) => {
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout
     });
-    rl.question(prompt, (answer) => {
+    rl.question(request.prompt, (answer) => {
       rl.close();
       resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes');
     });
