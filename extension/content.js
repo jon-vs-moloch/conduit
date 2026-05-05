@@ -14,15 +14,18 @@ const observer = new MutationObserver(() => {
 let extensionContextActive = true;
 let heartbeatTimer = null;
 let scanInterval = null;
+let pollTimer = null;
 
 reportTabStatus('content_script_loaded');
 heartbeatTimer = setInterval(() => reportTabStatus('content_script_alive'), 10_000);
 
 let scanTimer = null;
 function scheduleScan() {
+  if (!extensionContextActive) return;
   if (scanTimer) return;
   scanTimer = setTimeout(() => {
     scanTimer = null;
+    if (!extensionContextActive) return;
     scanLatestAssistantMessage();
   }, 500);
 }
@@ -38,6 +41,7 @@ pollForOutboundMessages();
 scanLatestAssistantMessage();
 
 function scanLatestAssistantMessage() {
+  if (!extensionContextActive) return;
   if (isGenerating()) return;
 
   const latestAssistant = findLatestAssistantMessage();
@@ -77,7 +81,18 @@ function reportTabStatus(status) {
 function safeSendMessage(message, callback) {
   if (!extensionContextActive) return false;
   try {
-    chrome.runtime.sendMessage(message, callback);
+    chrome.runtime.sendMessage(message, (...args) => {
+      if (!extensionContextActive) return;
+      try {
+        callback?.(...args);
+      } catch (error) {
+        if (isExtensionContextInvalidated(error)) {
+          disableExtensionContext();
+          return;
+        }
+        throw error;
+      }
+    });
     return true;
   } catch (error) {
     if (isExtensionContextInvalidated(error)) {
@@ -107,6 +122,10 @@ function disableExtensionContext() {
   if (scanInterval) {
     clearInterval(scanInterval);
     scanInterval = null;
+  }
+  if (pollTimer) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
   }
   console.warn('[Conduit Bridge] Extension context invalidated. Reload the ChatGPT tab to attach the current bridge.');
 }
@@ -283,8 +302,9 @@ function pollForOutboundMessages() {
   if (!extensionContextActive) return;
   safeSendMessage({ type: 'POLL_OUTBOUND' }, (response) => {
     if (!extensionContextActive) return;
-    if (chrome.runtime.lastError) {
-      setTimeout(pollForOutboundMessages, 2000);
+    const lastError = getRuntimeLastError();
+    if (lastError) {
+      scheduleOutboundPoll(2000);
       return;
     }
 
@@ -298,8 +318,28 @@ function pollForOutboundMessages() {
       });
     }
 
-    setTimeout(pollForOutboundMessages, 1000);
+    scheduleOutboundPoll(1000);
   });
+}
+
+function getRuntimeLastError() {
+  try {
+    return chrome.runtime.lastError;
+  } catch (error) {
+    if (isExtensionContextInvalidated(error)) {
+      disableExtensionContext();
+      return { message: 'Extension context invalidated.' };
+    }
+    throw error;
+  }
+}
+
+function scheduleOutboundPoll(delayMs) {
+  if (!extensionContextActive) return;
+  pollTimer = setTimeout(() => {
+    pollTimer = null;
+    pollForOutboundMessages();
+  }, delayMs);
 }
 
 function normalizeOutboundEnvelope(response) {

@@ -91,6 +91,8 @@ describe('macOS menu-bar package scaffold', () => {
     expect(content).toContain('content_script_alive');
     expect(content).toContain("['conduit', 'conduit-call'");
     expect(content).toContain('safeSendMessage');
+    expect(content).toContain('getRuntimeLastError');
+    expect(content).toContain('scheduleOutboundPoll');
     expect(content).toContain('Extension context invalidated');
   });
 
