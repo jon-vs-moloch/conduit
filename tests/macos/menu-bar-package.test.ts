@@ -8,6 +8,7 @@ describe('macOS menu-bar package scaffold', () => {
     await expectExists('macos/ConduitMenuBar/Sources/ConduitMenuBar/main.swift');
     await expectExists('macos/ConduitMenuBar/Assets/ConduitIcon.svg');
     await expectExists('script/build_and_run.sh');
+    await expectExists('script/package_dmg.sh');
 
     const main = await readText('macos/ConduitMenuBar/Sources/ConduitMenuBar/main.swift');
     expect(main).toContain('NSStatusBar.system.statusItem');
@@ -57,6 +58,14 @@ describe('macOS menu-bar package scaffold', () => {
     expect(script).toContain('src/cli/index.ts listen --project');
     expect(script).toContain('LSUIElement');
     expect(script).toContain('CONDUIT_REPO_ROOT="$ROOT" /usr/bin/open -n "$APP_BUNDLE"');
+
+    const packageScript = await readText('script/package_dmg.sh');
+    expect(packageScript).toContain('hdiutil create');
+    expect(packageScript).toContain('Conduit.dmg');
+    expect(packageScript).toContain('--skip-build');
+    expect(packageScript).toContain('ln -s /Applications');
+    expect(packageScript).toContain('README.txt');
+    expect(packageScript).toContain('shasum -a 256');
   });
 
   it('ships a local update manifest with release-artifact metadata', async () => {
@@ -71,7 +80,7 @@ describe('macOS menu-bar package scaffold', () => {
       platform: 'macos-universal',
       sha256: 'local-preview-placeholder'
     });
-    expect(manifest.artifacts[0].url).toContain('Conduit.zip');
+    expect(manifest.artifacts[0].url).toContain('Conduit.dmg');
   });
 
   it('loads the extension on ChatGPT origins and permits localhost bridge access', async () => {
@@ -110,6 +119,7 @@ describe('macOS menu-bar package scaffold', () => {
     const packageJson = JSON.parse(await readText('package.json'));
     expect(packageJson.scripts['macos:build']).toBe('./script/build_and_run.sh --build-only');
     expect(packageJson.scripts['macos:run']).toBe('./script/build_and_run.sh');
+    expect(packageJson.scripts['macos:package']).toBe('./script/package_dmg.sh');
 
     const environment = await readText('.codex/environments/environment.toml');
     expect(environment).toContain('[actions.Run]');

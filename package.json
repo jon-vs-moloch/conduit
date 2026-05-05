@@ -16,6 +16,7 @@
     "app": "tsx src/cli/index.ts app start",
     "macos:build": "./script/build_and_run.sh --build-only",
     "macos:run": "./script/build_and_run.sh",
+    "macos:package": "./script/package_dmg.sh",
     "site:dev": "tsx scripts/serve-site.ts",
     "login": "tsx src/cli/index.ts login",
     "login:system": "tsx src/cli/index.ts login:system",

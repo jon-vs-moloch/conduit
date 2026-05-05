@@ -7,7 +7,7 @@
   "artifacts": [
     {
       "platform": "macos-universal",
-      "url": "https://example.invalid/conduit/releases/0.0.1/Conduit.zip",
+      "url": "https://example.invalid/conduit/releases/0.0.1/Conduit.dmg",
       "sha256": "local-preview-placeholder",
       "signature": null
     }

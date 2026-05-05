@@ -37,6 +37,19 @@ On confirmed quit, the menu-bar app stops the supervised children. The child
 services also have a deadman switch: if the parent app disappears, they exit
 instead of continuing autonomous execution in the background.
 
+To build a drag-to-install preview DMG:
+
+```txt
+npm run macos:package
+```
+
+That creates `dist/macos/Conduit.dmg` and
+`dist/macos/Conduit.dmg.sha256`. The DMG contains `Conduit.app`, an
+`Applications` shortcut, and first-launch notes. This preview package is not
+signed or notarized, so macOS may require right-click **Open** on first launch.
+If `dist/macos/Conduit.app` is already staged and SwiftPM is temporarily broken,
+`npm run macos:package -- --skip-build` packages the existing app bundle.
+
 ## Common Commands
 
 ```txt
@@ -47,6 +60,7 @@ npm run spike
 npm run site:dev
 npm run macos:build
 npm run macos:run
+npm run macos:package
 npm run conduit -- session list
 npm run conduit -- daemon once
 npm run conduit -- daemon start
@@ -266,6 +280,7 @@ Working locally:
 - clipboard transport and exact-envelope daemon
 - local control panel
 - macOS menu-bar app bundle staging
+- unsigned macOS preview DMG packaging
 - supervised app/control/listener/daemon lifecycle
 - control-panel approvals for confirmation-required actions
 - local update-manifest check path
@@ -286,9 +301,7 @@ Still not production-ready:
 - signed and notarized desktop release artifact
 - real auto-replacement updater
 - hosted release downloads
-- extension popup/status UI
 - robust tab discard/throttle detection
-- a simpler small-model-friendly request schema
 - comprehensive live ChatGPT extension tests
 
 ## Web Presence

@@ -417,7 +417,7 @@ Dev preview:
 npm run site:dev
 ```
 
-The site is intentionally static for v0: home, download, about, and API pages. The download page currently points at source-checkout usage until packaged release artifacts exist.
+The site is intentionally static for v0: home, download, about, and API pages. The download page documents the source-checkout DMG packaging flow until hosted release artifacts exist.
 
 ## Completed Gate: Local macOS Menu-Bar App Scaffold
 
@@ -428,6 +428,7 @@ macos/ConduitMenuBar/Package.swift
 macos/ConduitMenuBar/Sources/ConduitMenuBar/main.swift
 macos/ConduitMenuBar/Assets/ConduitIcon.svg
 script/build_and_run.sh
+script/package_dmg.sh
 .codex/environments/environment.toml
 website/releases/conduit-appcast.json
 tests/macos/menu-bar-package.test.ts
@@ -437,6 +438,8 @@ Commands:
 
 ```txt
 npm run macos:build
+npm run macos:package
+npm run macos:package -- --skip-build # package an already staged app if SwiftPM is unavailable
 npm run macos:run
 ./script/build_and_run.sh --verify
 ```
@@ -445,6 +448,7 @@ Behavior:
 
 - builds a SwiftPM AppKit status-bar app
 - stages `dist/macos/Conduit.app`
+- packages `dist/macos/Conduit.dmg` with `Conduit.app`, an `/Applications` shortcut, install notes, and a SHA-256 checksum
 - starts/stops `npm run conduit -- app start --port 47831`
 - opens `http://127.0.0.1:47831`
 - starts/stops `npm run conduit -- listen --project <repo root>` for the browser extension agent loop
@@ -459,10 +463,10 @@ Behavior:
 
 Important limitation:
 
-- this is a local preview app, not a signed/notarized distributable
+- this is a local preview app and unsigned preview DMG, not a signed/notarized distributable
+- first launch from the DMG may require right-click Open because Gatekeeper cannot verify a developer identity yet
 - update checking can find and open an artifact URL, but does not self-replace the app bundle yet
 - the local preview manifest is intentionally unsigned; production releases should use signed artifacts and a real manifest signature story
-- the handshake creates a paired agent-loop session, but extension-side session/nonce enforcement still needs to be wired before YOLO-style execution is trusted
 
 ## Next Gate 3: Signed Desktop/Menu-Bar Release
 
