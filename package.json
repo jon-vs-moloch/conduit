@@ -18,9 +18,9 @@
     "macos:run": "./script/build_and_run.sh",
     "site:dev": "tsx scripts/serve-site.ts",
     "login": "tsx src/cli/index.ts login",
-    "login:system": "tsx src/cli/index.ts login --system",
-    "login:chromium": "tsx src/cli/index.ts login --channel chromium",
-    "login:chrome": "tsx src/cli/index.ts login --channel chrome",
+    "login:system": "tsx src/cli/index.ts login:system",
+    "login:chromium": "tsx src/cli/index.ts login:chromium",
+    "login:chrome": "tsx src/cli/index.ts login:chrome",
     "listen": "tsx src/cli/index.ts listen --project fixtures/fake-project",
     "spike": "tsx src/cli/index.ts run --transport fake --project fixtures/fake-project --task \"Read README.md and summarize it.\""
   },

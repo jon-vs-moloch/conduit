@@ -1,205 +1,281 @@
 # Conduit Runtime
 
-Conduit is a local harness for a browser-mediated ChatGPT agent loop.
+Conduit is a local control plane for consent-shaped agent execution.
 
-The current repository is a tractability-spike scaffold. The green path proves the smallest loop:
+The core use case is deliberately humble: when a chat model says "paste this in
+your terminal and run it," Conduit gives it a structured, policy-checked way to
+ask the local machine for the same work instead.
 
-1. send a task to a transport
-2. receive a `conduit` request block
-3. run one sandboxed local tool, `file.read`
-4. return `TOOL_RESULTS_JSON`
-5. stop on a `conduit-final` protocol block
-6. save logs locally
+Conduit is not a ChatGPT wrapper, not an auth bypass, and not a magic sandbox.
+It is a local runtime plus transports:
 
-## Commands
+- a macOS menu-bar app that supervises the local services
+- an exact-envelope clipboard daemon for compliance-mode execution
+- a browser-extension bridge for paired ChatGPT agent loops
+- a local control panel for sessions, starter envelopes, clipboard checks, and
+  handshake generation
+- a TypeScript CLI/runtime with policy-routed local tools
+
+## Quick Start
 
 ```txt
 npm install
 npm test
 npm run build
+npm run macos:run
+```
+
+`npm run macos:run` builds and launches `dist/macos/Conduit.app`. The menu-bar
+app starts three supervised child services by default:
+
+- control panel: `http://127.0.0.1:47831`
+- browser-extension agent listener: `http://127.0.0.1:3333`
+- clipboard watcher daemon
+
+On confirmed quit, the menu-bar app stops the supervised children. The child
+services also have a deadman switch: if the parent app disappears, they exit
+instead of continuing autonomous execution in the background.
+
+## Common Commands
+
+```txt
 npm run doctor
 npm run app
-npm run macos:build
-npm run macos:run
-npm run login
-npm run login:system
-npm run login:chrome
-npm run login:chromium
 npm run listen
 npm run spike
+npm run site:dev
+npm run macos:build
+npm run macos:run
+npm run conduit -- session list
 npm run conduit -- daemon once
 npm run conduit -- daemon start
 ```
 
 `npm run spike` runs the fake transport against `fixtures/fake-project`.
 
-During local development, use `npm run <command>` from this repo. `npm run login` defaults to `--channel auto`, which prefers installed Chrome or Edge and falls back to bundled Chromium. The plain `conduit` command is only available after building and linking/installing the package.
+`npm run site:dev` serves the static web presence at
+`http://127.0.0.1:47832`.
+
+The package also keeps the older Playwright login helpers around for debugging:
 
 ```txt
-npm run build
-npm link
-conduit login
-```
-
-If ChatGPT shows a Cloudflare verification loop in a Playwright-controlled browser, use the system browser for human login and the clipboard transport for the real-chat proof:
-
-```txt
+npm run login
 npm run login:system
-npm run conduit -- run --transport clipboard --project fixtures/fake-project --task "Read README.md and summarize it."
+npm run login:chrome
+npm run login:chromium
 ```
 
-Clipboard mode alternates directions:
+The durable v0 browser path is the extension bridge, not Playwright-controlled
+ChatGPT. Human auth happens in the user's normal browser.
 
-1. Conduit copies a harness message to the clipboard. Paste that into ChatGPT and send it.
-2. ChatGPT replies normally, optionally including a `conduit`/`conduit-call` or `conduit-final` code block. Copy ChatGPT's full assistant response.
-3. Return to the terminal and press Enter.
-4. If Conduit runs a tool, it copies `TOOL_RESULTS_JSON` to the clipboard. Paste that into ChatGPT as the next user message.
-5. Repeat until ChatGPT emits `conduit-final`.
+## Browser Extension Loop
 
-Do not copy Conduit's `TOOL_RESULTS_JSON` message back into Conduit. It is meant to be pasted into ChatGPT.
+Load the development extension:
 
-Preferred protocol blocks:
+1. Open Chrome or Brave.
+2. Go to `chrome://extensions/`.
+3. Enable Developer mode.
+4. Click **Load unpacked**.
+5. Select `/Users/jon/Projects/conduit/extension`.
+6. Reload the ChatGPT tab after each extension code change.
+
+Start Conduit with the menu-bar app, then choose:
+
+```txt
+Conduit menu -> Copy Agent Handshake
+```
+
+Paste the handshake into a real ChatGPT tab. The handshake creates an
+`extension` session with a one-shot nonce and teaches the agent to emit future
+requests as exactly one fenced `conduit` block.
+
+Accepted agent-loop request shape:
 
 ```conduit
 {
-  "type": "conduit.request.v1",
+  "schema": "conduit.request.v1",
+  "source": {
+    "kind": "chat",
+    "trust": "paired-session"
+  },
+  "permissions": [
+    {
+      "kind": "filesystem",
+      "scope": "project",
+      "access": "read"
+    }
+  ],
+  "sessionId": "sess_...",
+  "nonce": "call_...",
   "actions": [
     {
-      "id": "read_file",
-      "tool": "file.read",
-      "args": { "path": "README.md" },
-      "reason": "Need context.",
+      "id": "list_project",
+      "tool": "file.list",
+      "args": { "path": "." },
+      "reason": "Inspect the project root.",
       "risk": "low"
     }
   ]
 }
 ```
 
+The listener validates the paired session and nonce before executing actions.
+Successful results include `nextNonce`; the agent must use that nonce on the
+next request.
+
+Completion shape:
+
 ```conduit-final
 {
   "status": "complete",
-  "summary": "..."
+  "summary": "Done."
 }
 ```
 
-The harness ignores normal prose and reads only these named blocks. `conduit-call`, `veyr-call`, `veyr-final`, and legacy `ACTIONS_JSON` / `FINAL_JSON` delimiters are still accepted for compatibility.
+The extension still accepts `conduit-call`, `veyr-call`, `veyr-final`, and
+legacy action/final delimiters for migration compatibility, but new agents
+should use `conduit` and `conduit-final`.
 
-Compliance-mode clipboard execution is stricter than the agent loop: the daemon uses exact-envelope parsing and does not execute Conduit blocks embedded inside larger copied text. Embedded-block parsing is reserved for authenticated agent-loop transports or explicit unsafe/YOLO settings.
+## Clipboard Execution
 
-A single `conduit` request block may contain multiple actions. The harness executes them sequentially and returns one `TOOL_RESULTS_JSON` message containing all results. No separate end-turn marker is required.
+The clipboard daemon uses exact-envelope parsing by default. It trims leading
+and trailing whitespace, then executes only if the entire clipboard is exactly
+one valid Conduit envelope.
 
-You can still try the installed Chrome channel explicitly:
+Accepted clipboard forms:
+
+- one fenced `conduit` block containing strict JSON
+- one fenced `conduit-json` block containing strict JSON
+- one raw JSON Conduit request object
+
+The daemon rejects arbitrary prose, README fragments, webpages, chats, or
+markdown that merely contain an embedded Conduit block. Embedded block parsing
+belongs to authenticated agent-loop transports or explicit unsafe power-user
+settings, not compliance-mode clipboard monitoring.
+
+Clipboard-origin requests must include:
+
+- `schema: "conduit.request.v1"`
+- `source`
+- `permissions`
+- `sessionId`
+- `nonce`
+- stable action `id` values
+
+## Health And Logs
+
+Extension bridge health:
 
 ```txt
-npm run login:chrome
+curl http://127.0.0.1:3333/health
 ```
 
-Complete any human verification manually. Conduit should not automate or bypass login checks.
+Useful fields:
 
-## Current Status
+- `tabStatusCount`: whether a ChatGPT content script has reported in
+- `lastTabStatus`: latest tab heartbeat or outbound send stage
+- `outboundQueued`: messages waiting for the extension to pick up
+- `pendingPolls`: extension long-polls waiting for outbound messages
+- `pendingSendResults` and `pendingSendResultIds`: outbounds delivered to the
+  extension but not yet confirmed as sent
+- `lastSendResult`: last extension send result
+- `lastTransportError`: last abandoned or failed outbound send
 
-- TypeScript CLI skeleton
-- strict protocol parser
-- fake transport
-- clipboard transport scaffold
-- extension transport scaffold
-- ChatGPT Playwright transport scaffold
-- run loop
-- shared action executor
-- trusted request executor
-- exact clipboard-envelope parser for daemon execution
-- clipboard watcher daemon
-- local control app
-- macOS menu-bar app scaffold and local `.app` bundle staging
-- local update-manifest check path for the menu-bar app
-- agent-loop handshake generator for real chat tabs
-- paired-session/nonce enforcement for persistent extension listener execution
-- structured `CONDUIT_REPAIR_JSON` output for rejected executable envelopes
-- static web presence under `website/`
-- session store and nonce primitives
-- policy engine with allow/review/confirm/deny decisions
-- local run logs
+Service logs live in:
+
+```txt
+~/Library/Logs/Conduit/agent-listener.log
+~/Library/Logs/Conduit/clipboard-daemon.log
+~/Library/Logs/Conduit/control-app.log
+```
+
+If the extension appears enabled but `tabStatusCount` is `0`, reload the
+unpacked extension, then reload the ChatGPT tab.
+
+If `lastTabStatus.status` starts with `outbound_`, the content script is
+reporting its current browser-send stage, such as composer insertion, send
+button wait, or commit verification.
+
+## Tools And Policy
+
+Implemented tools:
+
 - `file.read`
 - `file.list`
 - `git.status`
 - `git.diff`
-- policy-routed `file.write`, `file.patch`, and `shell.run`
-- project-root sandbox checks
-- secret filename denial
-- Vitest coverage for protocol, file reads, and the fake-loop spike
-- Vitest coverage for protocol block extraction and extension transport queueing
-- Vitest coverage for sessions, policy decisions, and policy-routed runtime denials
-- Vitest coverage for trusted request execution and nonce replay rejection
-- Vitest coverage for embedded Conduit block rejection in clipboard-style execution
-- Vitest coverage for clipboard watcher execution/rejection/ignore paths
-- Vitest coverage for `file.list`, `git.status`, `git.diff`, `file.write`, `file.patch`, and `shell.run`
-- Vitest end-to-end coverage for public CLI doctor/run/session flows
-- Vitest coverage for the macOS menu-bar package scaffold and update manifest
-- Vitest coverage for control-app agent handshake creation/copy
-- Vitest coverage for paired extension listener enforcement and agent-initiated handshake requests
-- Vitest coverage for malformed request repair rendering and clipboard writeback
-- Vitest static-site coverage for download, about, and API pages
+- `file.write`
+- `file.patch`
+- `shell.run`
 
-High-risk tools are routed through the policy engine. `shell-manual` allows read/git tools automatically and requires confirmation for write/patch/shell actions; `--yes` approves those confirmation-required actions in local development flows.
+High-risk tools are routed through the policy engine. Read/git tools can run
+under read-oriented profiles; write, patch, and shell actions require stronger
+policy and may require confirmation. `--yes` approves confirmation-required
+actions in local development flows.
 
-## What Is Not Proven Yet
+Hard denials include project-root sandbox violations and secret-looking
+filenames.
 
-- clipboard transport end-to-end with real ChatGPT
-- signed/notarized desktop/menu-bar release artifact
-- ChatGPT browser login/send/read against the live UI
-- hosted web deployment and real release download artifacts
-- malformed-protocol repair prompts
-- polished approval prompts/UI
-- extension execution path session/nonce enforcement
-- project/thread automation
-- background autonomy
+## Current Status
 
-## Next Gates
+Working locally:
 
-1. Keep `npm run build`, `npm test`, and `npm run spike` green.
-2. Use persistent extension listener for v0:
+- TypeScript CLI/runtime
+- fake transport spike
+- clipboard transport and exact-envelope daemon
+- local control panel
+- macOS menu-bar app bundle staging
+- supervised app/control/listener/daemon lifecycle
+- local update-manifest check path
+- Chrome/Brave unpacked extension bridge
+- paired-session nonce enforcement for extension agent loops
+- agent-initiated handshake request rejection/repair path
+- structured repair envelopes for malformed/rejected requests
+- static download/about/API pages
+- local session store
+- local run logs
+- policy-routed local tools
+- Vitest coverage for protocol parsing, session/nonce handling, policy,
+  clipboard execution, extension transport queueing, app scaffolding, and CLI
+  e2e flows
 
-```txt
-npm run conduit -- listen --project fixtures/fake-project
-```
+Still not production-ready:
 
-`run --transport extension` is bounded and stops on `conduit-final`.
-`listen` stays open after `conduit-final`; later `conduit` or `conduit-call` blocks start new logged sessions.
+- signed and notarized desktop release artifact
+- real auto-replacement updater
+- hosted release downloads
+- extension popup/status UI
+- robust tab discard/throttle detection
+- polished approval UI
+- a simpler small-model-friendly request schema
+- comprehensive live ChatGPT extension tests
 
-3. Turn the local menu-bar app into a signed/notarized release artifact.
-4. Replace the source-checkout download page with signed release artifacts.
-5. Add pairing token support to the local extension bridge.
-6. Add tab/throttle detection and extension UI status.
-7. Harden ChatGPT composer insertion as the UI changes.
+## Web Presence
 
-Static web preview:
+The static site lives in `website/`:
+
+- `website/index.html`
+- `website/download.html`
+- `website/about.html`
+- `website/api.html`
+- `website/releases/conduit-appcast.json`
+
+Preview it with:
 
 ```txt
 npm run site:dev
 ```
 
-Then open `http://127.0.0.1:47832`.
+## More Docs
 
-Local macOS app build:
-
-```txt
-npm run macos:build
-open dist/macos/Conduit.app
-```
-
-The menu-bar app starts the local control app, agent listener, and clipboard daemon by default, opens the control panel, stops supervised services on confirmed quit, and checks a local update manifest at `website/releases/conduit-appcast.json` unless `CONDUIT_UPDATE_MANIFEST_URL` is set. Supervised services also watch the menu-bar parent process and exit if it disappears. The local build/run script also terminates legacy Conduit service processes from the same repo checkout that predate parent supervision.
-
-Agent-loop handshake:
-
-```txt
-Open Conduit menu bar app -> Copy Agent Handshake
-```
-
-Paste the copied handshake into a real ChatGPT tab to introduce Conduit, create a paired `extension` session, and give the model the initial `sessionId` and `nonce` for elevated agent-loop requests. The menu-bar agent listener keeps the browser extension bridge open on `127.0.0.1:3333` so detected action blocks can round-trip results back into the chat.
-
-If the extension appears enabled but no round trip happens, check `curl http://127.0.0.1:3333/health`. `tabStatusCount: 0` means the ChatGPT tab has not reported a live content script; reload the unpacked extension from `chrome://extensions/`, then reload the ChatGPT tab.
-
-Auth/browser troubleshooting has its own plan in [docs/auth-troubleshooting.md](docs/auth-troubleshooting.md).
-The principled browser-extension transport plan is in [docs/extension-transport-plan.md](docs/extension-transport-plan.md).
+- [spec.md](spec.md): product and security contract
+- [implementation.md](implementation.md): implementation notes and roadmap
+- [NEXT_STEPS.md](NEXT_STEPS.md): current buildout checklist
+- [extension/README.md](extension/README.md): extension install, behavior, and
+  transport telemetry
+- [docs/auth-troubleshooting.md](docs/auth-troubleshooting.md): browser auth
+  background
+- [docs/extension-transport-plan.md](docs/extension-transport-plan.md):
+  extension architecture plan
 
 Keep the loop small until it is boring.

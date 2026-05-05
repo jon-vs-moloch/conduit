@@ -6,7 +6,7 @@ export interface RenderAgentHandshakeInput {
 }
 
 export function renderAgentHandshake(input: RenderAgentHandshakeInput): string {
-  const docsUrl = input.docsUrl ?? 'https://github.com/introsium/conduit#conduit-runtime';
+  const docsUrl = input.docsUrl ?? 'https://github.com/jon-vs-moloch/conduit#conduit-runtime';
   const session = input.session;
   const handshake = {
     schema: 'conduit.handshake.v1',
