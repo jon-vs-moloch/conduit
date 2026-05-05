@@ -291,7 +291,8 @@ program.command('listen')
     await listenLoop({
       projectRoot: options.project,
       transport: new ExtensionTransport(),
-      yes: options.yes
+      yes: options.yes,
+      requireTrustedSession: true
     });
   });
 

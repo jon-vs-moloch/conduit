@@ -122,6 +122,12 @@ Current state:
   - control app toolbar button
   - menu-bar `Copy Agent Handshake` action
   - creates an `extension` session and copies a self-contained protocol intro for a real chat tab
+- Persistent extension listener session enforcement is implemented:
+  - `npm run conduit -- listen --project ...` requires valid `extension` or `browser-yolo` session id and current nonce before action execution
+  - successful extension listener actions consume and rotate the nonce
+  - extension listener results return `CONDUIT_RESULTS_JSON` with `nextNonce`
+  - missing/invalid/replayed session data returns `CONDUIT_REPAIR_JSON`
+  - `conduit-handshake-request` is detected but never auto-pairs; it asks for local user approval via Copy Agent Handshake
 - Structured repair output is implemented:
   - rejected exact envelopes return `CONDUIT_REPAIR_JSON`
   - malformed JSON, multiple envelopes, missing session/nonce, and invalid session failures include repair instructions and an example request

@@ -91,7 +91,7 @@ function extractProtocolBlocks(text) {
 
 function extractNamedBlocks(text) {
   const blocks = [];
-  const pattern = /(?:^|\n)(```[ \t]*(?:json[ \t]+)?(conduit-call|conduit-final|veyr-call|veyr-final|conduit)(?:[ \t]+json)?[^\n]*\n([\s\S]*?)\n```)/g;
+  const pattern = /(?:^|\n)(```[ \t]*(?:json[ \t]+)?(conduit-call|conduit-final|conduit-handshake-request|veyr-call|veyr-final|conduit)(?:[ \t]+json)?[^\n]*\n([\s\S]*?)\n```)/g;
   for (const match of text.matchAll(pattern)) {
     blocks.push({
       kind: match[2],
@@ -117,7 +117,7 @@ function extractLegacyBlocks(text, kind, start, end) {
 
 function extractRenderedNamedBlocks(text) {
   const blocks = [];
-  for (const kind of ['conduit-call', 'conduit-final', 'veyr-call', 'veyr-final']) {
+  for (const kind of ['conduit-call', 'conduit-final', 'conduit-handshake-request', 'veyr-call', 'veyr-final']) {
     let searchFrom = 0;
     while (searchFrom < text.length) {
       const labelIndex = text.indexOf(kind, searchFrom);

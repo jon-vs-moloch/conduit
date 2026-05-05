@@ -113,6 +113,7 @@ Complete any human verification manually. Conduit should not automate or bypass 
 - macOS menu-bar app scaffold and local `.app` bundle staging
 - local update-manifest check path for the menu-bar app
 - agent-loop handshake generator for real chat tabs
+- paired-session/nonce enforcement for persistent extension listener execution
 - structured `CONDUIT_REPAIR_JSON` output for rejected executable envelopes
 - static web presence under `website/`
 - session store and nonce primitives
@@ -135,6 +136,7 @@ Complete any human verification manually. Conduit should not automate or bypass 
 - Vitest end-to-end coverage for public CLI doctor/run/session flows
 - Vitest coverage for the macOS menu-bar package scaffold and update manifest
 - Vitest coverage for control-app agent handshake creation/copy
+- Vitest coverage for paired extension listener enforcement and agent-initiated handshake requests
 - Vitest coverage for malformed request repair rendering and clipboard writeback
 - Vitest static-site coverage for download, about, and API pages
 

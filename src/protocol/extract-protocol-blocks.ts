@@ -2,6 +2,7 @@ export type ProtocolBlockKind =
   | 'conduit'
   | 'conduit-call'
   | 'conduit-final'
+  | 'conduit-handshake-request'
   | 'veyr-call'
   | 'veyr-final'
   | 'legacy-actions'
@@ -13,7 +14,7 @@ export interface ExtractedProtocolBlock {
   jsonText: string;
 }
 
-const NAMED_BLOCK_PATTERN = /(?:^|\n)(```[ \t]*(?:json[ \t]+)?(conduit-call|conduit-final|veyr-call|veyr-final|conduit)(?:[ \t]+json)?[^\n]*\n([\s\S]*?)\n```)/g;
+const NAMED_BLOCK_PATTERN = /(?:^|\n)(```[ \t]*(?:json[ \t]+)?(conduit-call|conduit-final|conduit-handshake-request|veyr-call|veyr-final|conduit)(?:[ \t]+json)?[^\n]*\n([\s\S]*?)\n```)/g;
 
 export function extractProtocolBlocks(text: string): ExtractedProtocolBlock[] {
   return [
@@ -72,7 +73,7 @@ function extractLegacyBlocks(
 
 function extractRenderedNamedBlocks(text: string): ExtractedProtocolBlock[] {
   const blocks: ExtractedProtocolBlock[] = [];
-  for (const kind of ['conduit-call', 'conduit-final', 'veyr-call', 'veyr-final'] as const) {
+  for (const kind of ['conduit-call', 'conduit-final', 'conduit-handshake-request', 'veyr-call', 'veyr-final'] as const) {
     let searchFrom = 0;
     while (searchFrom < text.length) {
       const labelIndex = text.indexOf(kind, searchFrom);
@@ -115,6 +116,7 @@ function isNamedProtocolKind(kind: unknown): kind is ProtocolBlockKind {
   return kind === 'conduit-call'
     || kind === 'conduit'
     || kind === 'conduit-final'
+    || kind === 'conduit-handshake-request'
     || kind === 'veyr-call'
     || kind === 'veyr-final';
 }

@@ -6,7 +6,7 @@ The extension does not bypass auth, solve verification challenges, extract cooki
 
 ## Current Capabilities (Spike Phase)
 - Injects a content script into `https://chatgpt.com/*`.
-- Observes visible assistant messages for `conduit-call` and `conduit-final` code blocks.
+- Observes visible assistant messages for `conduit`, `conduit-call`, `conduit-final`, and `conduit-handshake-request` code blocks.
 - Keeps legacy `<<<ACTIONS_JSON` and `<<<FINAL_JSON` support for compatibility.
 - De-duplicates protocol blocks across DOM updates.
 - Passes the payload from the restricted content script to the unrestricted background service worker.
@@ -41,9 +41,10 @@ Lifecycle:
 
 - `run --transport extension` sends an initial task and exits on `conduit-final`.
 - `listen` keeps the bridge open.
-- In `listen` mode, a `conduit-call` starts or continues a logged session.
+- In `listen` mode, a `conduit` or `conduit-call` request must include a valid paired session id and current nonce before actions execute.
 - In `listen` mode, a `conduit-final` closes the current session but leaves the listener active.
 - A later `conduit-call` starts a new session.
+- A `conduit-handshake-request` never creates a session by itself. It returns a repair/approval message asking the local user to choose **Copy Agent Handshake** from Conduit.
 
 ## Current Hardening Notes
 
@@ -55,6 +56,7 @@ Lifecycle:
 - The content script retries browser sends through composer stabilization, upload settling, send-button readiness, click, and commit verification.
 - Retry dedupe is based on the visible `transportId`, so ambiguous retries should not duplicate already-sent messages.
 - Persistent `listen` mode stays active after `conduit-final`.
+- Extension listener execution is paired-session gated: no valid active `extension`/`browser-yolo` session and current nonce means no local action execution.
 - `/health` is available on the local bridge.
 - Send results are reported to `/api/conduit-send-result` with `transportId`, `attempts`, `messageChars`, and optional `error`.
 - `file.read` supports `offset` plus `nextOffset` metadata so large files can be read in continuation slices.
@@ -76,6 +78,6 @@ Interpretation:
 
 1. Add extension UI/popup status.
 2. Detect discarded/throttled/unavailable tabs.
-3. Add pairing token support for the local bridge.
+3. Add extension UI for pending handshake requests and pairing status.
 4. Make composer insertion more robust across ChatGPT UI changes.
 5. Add static DOM fixture tests for content-script extraction helpers.

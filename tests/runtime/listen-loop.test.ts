@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { processListenTurn, type ListenSession } from '../../src/runtime/listen-loop.js';
+import { createSession, getSession } from '../../src/sessions/session-store.js';
 import { FakeTransport } from '../../src/transports/fake-transport.js';
 
 describe('processListenTurn', () => {
@@ -104,5 +105,114 @@ describe('processListenTurn', () => {
     expect(later.session).not.toBeNull();
     expect(later.session?.runId).not.toBe(session?.runId);
     expect(transport.sentMessages[1]).toContain('hello listener');
+  });
+
+  it('requires a valid paired session and nonce before extension listener execution', async () => {
+    const transport = new FakeTransport([]);
+
+    const rejected = await processListenTurn({
+      assistantTurn: {
+        text: [
+          '```conduit',
+          JSON.stringify({
+            schema: 'conduit.request.v1',
+            actions: [
+              {
+                id: 'read_readme',
+                tool: 'file.read',
+                args: { path: 'README.md' },
+                reason: 'Need context.',
+                risk: 'low'
+              }
+            ]
+          }),
+          '```'
+        ].join('\n'),
+        timestamp: '2026-05-04T00:00:00.000Z'
+      },
+      projectRoot,
+      transport,
+      session: null,
+      requireTrustedSession: true
+    });
+
+    expect(rejected.status).toBe('protocol_error');
+    expect(transport.sentMessages[0]).toContain('CONDUIT_REPAIR_JSON');
+    expect(transport.sentMessages[0]).toContain('"code": "missing_session"');
+
+    const paired = await createSession({
+      label: 'Extension',
+      permissionProfile: 'read-only',
+      allowedRoots: [projectRoot],
+      transport: 'extension'
+    });
+
+    const accepted = await processListenTurn({
+      assistantTurn: {
+        text: [
+          '```conduit',
+          JSON.stringify({
+            schema: 'conduit.request.v1',
+            source: { kind: 'chat', trust: 'paired-session' },
+            permissions: [],
+            sessionId: paired.sessionId,
+            nonce: paired.currentNonce,
+            actions: [
+              {
+                id: 'read_readme',
+                tool: 'file.read',
+                args: { path: 'README.md' },
+                reason: 'Need context.',
+                risk: 'low'
+              }
+            ]
+          }),
+          '```'
+        ].join('\n'),
+        timestamp: '2026-05-04T00:00:01.000Z'
+      },
+      projectRoot,
+      transport,
+      session: rejected.session,
+      requireTrustedSession: true
+    });
+
+    expect(accepted.status).toBe('actions');
+    expect(transport.sentMessages[1]).toContain('CONDUIT_RESULTS_JSON');
+    expect(transport.sentMessages[1]).toContain('hello listener');
+    expect(transport.sentMessages[1]).toContain('"nextNonce"');
+
+    const updated = await getSession(paired.sessionId);
+    expect(updated?.usedNonces).toContain(paired.currentNonce);
+    expect(updated?.currentNonce).not.toBe(paired.currentNonce);
+  });
+
+  it('does not auto-pair when an agent initiates a handshake request', async () => {
+    const transport = new FakeTransport([]);
+
+    const result = await processListenTurn({
+      assistantTurn: {
+        text: [
+          '```conduit-handshake-request',
+          JSON.stringify({
+            schema: 'conduit.handshake.request.v1',
+            reason: 'I need to inspect the project.',
+            requestedProfile: 'read-only',
+            docsRead: true
+          }),
+          '```'
+        ].join('\n'),
+        timestamp: '2026-05-04T00:00:00.000Z'
+      },
+      projectRoot,
+      transport,
+      session: null,
+      requireTrustedSession: true
+    });
+
+    expect(result.status).toBe('protocol_error');
+    expect(transport.sentMessages[0]).toContain('CONDUIT_REPAIR_JSON');
+    expect(transport.sentMessages[0]).toContain('Local user approval is required');
+    expect(transport.sentMessages[0]).toContain('Copy Agent Handshake');
   });
 });

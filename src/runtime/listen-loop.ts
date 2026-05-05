@@ -2,8 +2,11 @@ import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { parseActions } from '../protocol/parse-actions.js';
 import { parseFinal } from '../protocol/parse-final.js';
-import { renderProtocolError, renderToolResults } from '../protocol/render-results.js';
-import type { FinalBlock } from '../protocol/schemas.js';
+import { parseHandshakeRequest } from '../protocol/parse-handshake-request.js';
+import { renderConduitRepair, renderConduitResults, renderProtocolError, renderToolResults } from '../protocol/render-results.js';
+import { createRepairEnvelope } from '../protocol/repair.js';
+import type { FinalBlock, ToolResult } from '../protocol/schemas.js';
+import { consumeSessionNonce, validateSessionNonce } from '../sessions/session-store.js';
 import { getRunDir } from '../state/paths.js';
 import { appendJsonl, ensureRunDir, writeTextFile } from '../state/logs.js';
 import type { AssistantTurn, ModelTransport } from '../transports/types.js';
@@ -14,6 +17,7 @@ export interface ListenInput {
   projectRoot: string;
   transport: ModelTransport;
   yes?: boolean;
+  requireTrustedSession?: boolean;
 }
 
 export interface ListenSession {
@@ -55,7 +59,8 @@ export async function listenLoop(input: ListenInput): Promise<void> {
         projectRoot,
         transport: input.transport,
         session,
-        yes: input.yes
+        yes: input.yes,
+        requireTrustedSession: input.requireTrustedSession
       });
       session = result.session;
     }
@@ -70,9 +75,26 @@ export async function processListenTurn(input: {
   transport: Pick<ModelTransport, 'sendMessage'>;
   session: ListenSession | null;
   yes?: boolean;
+  requireTrustedSession?: boolean;
 }): Promise<ListenTurnResult> {
   const finalResult = parseFinal(input.assistantTurn.text);
   const actionsResult = parseActions(input.assistantTurn.text);
+  const handshakeRequestResult = parseHandshakeRequest(input.assistantTurn.text);
+
+  if (handshakeRequestResult.ok) {
+    const session = await ensureSession(input.session, input.projectRoot);
+    await logAssistantTurn(session, input.assistantTurn);
+    const repair = renderConduitRepair(createRepairEnvelope({
+      reason: [
+        'Agent-loop handshake requested. Local user approval is required before Conduit creates or exposes a paired session.',
+        'Ask the user to choose Copy Agent Handshake from the Conduit menu-bar app or control panel.'
+      ].join(' '),
+      code: 'request_rejected'
+    }));
+    await input.transport.sendMessage(repair);
+    await logUserMessage(session, repair);
+    return { status: 'protocol_error', session };
+  }
 
   if (finalResult.ok && actionsResult.ok) {
     const session = await ensureSession(input.session, input.projectRoot);
@@ -92,7 +114,22 @@ export async function processListenTurn(input: {
   }
 
   if (actionsResult.ok) {
-    const session = await ensureSession(input.session, input.projectRoot);
+    const trusted = input.requireTrustedSession
+      ? await validateAndConsumeAgentRequest(actionsResult.block)
+      : null;
+    if (input.requireTrustedSession && !trusted?.ok) {
+      const session = await ensureSession(input.session, input.projectRoot);
+      await logAssistantTurn(session, input.assistantTurn);
+      const repair = renderConduitRepair(trusted!.repair);
+      await input.transport.sendMessage(repair);
+      await logUserMessage(session, repair);
+      return { status: 'protocol_error', session };
+    }
+
+    const sessionProjectRoot = trusted?.ok
+      ? await realpath(path.resolve(trusted.session.allowedRoots[0]))
+      : input.projectRoot;
+    const session = await ensureSession(input.session, sessionProjectRoot);
     await logAssistantTurn(session, input.assistantTurn);
     const results = await executeActions({
       actions: actionsResult.block.actions,
@@ -100,11 +137,21 @@ export async function processListenTurn(input: {
       runId: session.runId,
       runDir: session.runDir,
       turn: session.turnCount + 1,
-      yes: input.yes
+      yes: input.yes,
+      ...(trusted?.ok ? { policySession: trusted.session } : {})
     });
     session.turnCount += 1;
     session.actionCount += actionsResult.block.actions.length;
-    const renderedResults = renderToolResults(results);
+    const renderedResults = trusted?.ok
+      ? renderConduitResults({
+        type: 'conduit.results.v1',
+        runId: session.runId,
+        sessionId: trusted.session.sessionId,
+        nextNonce: trusted.session.currentNonce,
+        results,
+        status: summarizeResults(results)
+      })
+      : renderToolResults(results);
     await input.transport.sendMessage(renderedResults);
     await logUserMessage(session, renderedResults);
     return { status: 'actions', session };
@@ -116,6 +163,55 @@ export async function processListenTurn(input: {
   await input.transport.sendMessage(errorMessage);
   await logUserMessage(session, errorMessage);
   return { status: 'protocol_error', session };
+}
+
+async function validateAndConsumeAgentRequest(request: {
+  sessionId?: string;
+  nonce?: string;
+}): Promise<
+  | { ok: true; session: Awaited<ReturnType<typeof consumeSessionNonce>> }
+  | { ok: false; repair: ReturnType<typeof createRepairEnvelope> }
+> {
+  if (!request.sessionId || !request.nonce) {
+    return {
+      ok: false,
+      repair: createRepairEnvelope({
+        reason: 'Agent-loop execution requires sessionId and nonce.',
+        code: 'missing_session',
+        request
+      })
+    };
+  }
+
+  const validation = await validateSessionNonce(request.sessionId, request.nonce);
+  if (!validation.ok) {
+    return {
+      ok: false,
+      repair: createRepairEnvelope({
+        reason: validation.reason,
+        code: 'invalid_session',
+        request,
+        sessionId: request.sessionId
+      })
+    };
+  }
+
+  if (validation.session.transport !== 'extension' && validation.session.transport !== 'browser-yolo') {
+    return {
+      ok: false,
+      repair: createRepairEnvelope({
+        reason: `Session transport ${validation.session.transport} is not allowed for extension agent-loop execution.`,
+        code: 'invalid_session',
+        request,
+        sessionId: request.sessionId
+      })
+    };
+  }
+
+  return {
+    ok: true,
+    session: await consumeSessionNonce(request.sessionId, request.nonce)
+  };
 }
 
 async function ensureSession(session: ListenSession | null, projectRoot: string): Promise<ListenSession> {
@@ -166,4 +262,17 @@ async function logUserMessage(session: ListenSession, text: string): Promise<voi
 async function writeFinal(session: ListenSession, final: FinalBlock): Promise<void> {
   await writeTextFile(session.runDir, 'final.json', JSON.stringify(final, null, 2));
   await writeTextFile(session.runDir, 'final.md', final.summary);
+}
+
+function summarizeResults(results: ToolResult[]): 'ok' | 'partial' | 'denied' | 'error' {
+  if (results.every((result) => result.status === 'ok')) {
+    return 'ok';
+  }
+  if (results.every((result) => result.status === 'denied' || result.status === 'requires_confirmation')) {
+    return 'denied';
+  }
+  if (results.some((result) => result.status === 'error')) {
+    return 'error';
+  }
+  return 'partial';
 }

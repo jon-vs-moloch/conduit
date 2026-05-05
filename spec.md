@@ -179,6 +179,32 @@ This path is for an elevated paired agent-loop session. It is distinct from comp
 
 The extension or browser transport MUST enforce the paired session and nonce before treating agent-loop requests as executable.
 
+An agent MAY initiate a handshake request with:
+
+````txt
+```conduit-handshake-request
+{
+  "schema": "conduit.handshake.request.v1",
+  "reason": "Need local project context.",
+  "requestedProfile": "read-only",
+  "docsRead": true
+}
+```
+````
+
+This request MUST NOT create or expose a trusted session by itself.
+
+Sane default policy:
+
+- no auto-pairing from model output
+- local user approval required
+- requested profile must be shown to the user
+- requested root must be shown to the user
+- unknown origins are untrusted by default
+- optional allowlists may pre-approve a known extension/origin/profile tuple, but still should not grant broader roots or higher profiles silently
+
+The safe response to an unapproved handshake request is a repair/approval message instructing the user to choose **Copy Agent Handshake** from the Conduit app.
+
 ### 3.4 Capability
 
 A capability is a local permission to use a specific kind of tool.

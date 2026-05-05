@@ -42,6 +42,18 @@ describe('extractProtocolBlocks', () => {
     expect(blocks[0]?.kind).toBe('conduit-final');
   });
 
+  it('extracts agent-initiated handshake request blocks', () => {
+    const blocks = extractProtocolBlocks([
+      '```conduit-handshake-request',
+      '{ "schema": "conduit.handshake.request.v1", "reason": "Need local context." }',
+      '```'
+    ].join('\n'));
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]?.kind).toBe('conduit-handshake-request');
+    expect(blocks[0]?.jsonText).toContain('conduit.handshake.request.v1');
+  });
+
   it('extracts legacy delimiter blocks for compatibility', () => {
     const blocks = extractProtocolBlocks([
       '<<<ACTIONS_JSON',
