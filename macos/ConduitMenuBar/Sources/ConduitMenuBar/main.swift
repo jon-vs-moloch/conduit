@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import UserNotifications
 
 let app = NSApplication.shared
 let delegate = AppDelegate()
@@ -25,10 +26,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var daemonToggleItem = NSMenuItem()
     private var controlAppExternalAvailable = false
     private var controlAppSupportsAgentHandshake = false
+    private var agentListenerNeedsAttention = false
+    private var notifiedTransportIds = Set<String>()
     private var healthTimer: Timer?
     private var terminationConfirmed = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        requestNotificationAuthorization()
         configureStatusItem()
         rebuildMenu()
         if (try? PortListeners.listenerPids(on: 47831).isEmpty) == true {
@@ -40,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startDaemon()
         healthTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             self?.refreshControlAppHealth()
+            self?.refreshAgentListenerHealth()
         }
     }
 
@@ -126,7 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func statusTitle() -> String {
         let control = "control \(controlAppStatusSummary())"
-        let agentState = "agent \(agentListener.statusSummary)"
+        let agentState = agentListenerNeedsAttention ? "agent needs attention" : "agent \(agentListener.statusSummary)"
         let daemonState = "daemon \(daemon.statusSummary)"
         return "Status: \(control), \(agentState), \(daemonState)"
     }
@@ -185,6 +190,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 completion?(available)
             }
         }.resume()
+    }
+
+    private func refreshAgentListenerHealth() {
+        guard agentListener.isRunning, let url = URL(string: "http://127.0.0.1:3333/health") else {
+            if agentListenerNeedsAttention {
+                agentListenerNeedsAttention = false
+                refreshMenu()
+            }
+            return
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 0.75
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+            let health = data.flatMap { try? JSONDecoder().decode(AgentListenerHealthResponse.self, from: $0) }
+            let exhausted = (response as? HTTPURLResponse)?.statusCode == 200 && health?.lastTransportError?.needsAttention == true
+            DispatchQueue.main.async {
+                guard let self else {
+                    return
+                }
+                self.agentListenerNeedsAttention = exhausted
+                if exhausted, let error = health?.lastTransportError {
+                    self.notifyAgentSendFailure(error)
+                }
+                self.refreshMenu()
+            }
+        }.resume()
+    }
+
+    private func notifyAgentSendFailure(_ error: AgentTransportError) {
+        let transportId = error.transportId ?? "unknown"
+        if notifiedTransportIds.contains(transportId) {
+            return
+        }
+        notifiedTransportIds.insert(transportId)
+        let content = UNMutableNotificationContent()
+        content.title = "Conduit send needs attention"
+        content.body = "Agent message \(transportId) could not be sent after retries. Reload the ChatGPT tab or extension, then retry."
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: "conduit-send-\(transportId)", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    private func requestNotificationAuthorization() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
     @objc private func toggleControlApp() {
@@ -457,6 +506,15 @@ struct ControlStatusResponse: Decodable {
 
 struct ControlCapabilities: Decodable {
     let agentHandshake: Bool?
+}
+
+struct AgentListenerHealthResponse: Decodable {
+    let lastTransportError: AgentTransportError?
+}
+
+struct AgentTransportError: Decodable {
+    let transportId: String?
+    let needsAttention: Bool?
 }
 
 struct AppError: LocalizedError {

@@ -27,6 +27,9 @@ describe('macOS menu-bar package scaffold', () => {
     expect(main).toContain('Open Logs');
     expect(main).toContain('Logs/Conduit');
     expect(main).toContain('/api/status');
+    expect(main).toContain('http://127.0.0.1:3333/health');
+    expect(main).toContain('needs attention');
+    expect(main).toContain('UNUserNotificationCenter');
     expect(main).toContain('Control App Already Running');
     expect(main).toContain('Control App Needs Restart');
     expect(main).toContain('agentHandshake');

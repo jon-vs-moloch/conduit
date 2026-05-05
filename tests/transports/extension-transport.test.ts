@@ -5,7 +5,11 @@ describe('ExtensionTransport', () => {
   let transport: ExtensionTransport;
 
   beforeEach(async () => {
-    transport = new ExtensionTransport({ port: 0 });
+    transport = new ExtensionTransport({
+      port: 0,
+      sendResultTimeoutMs: 75,
+      sendRetryDelaysMs: [10, 20]
+    });
     await transport.open();
   });
 
@@ -144,7 +148,7 @@ describe('ExtensionTransport', () => {
     });
   });
 
-  it('records failed send results without rejecting delivered messages', async () => {
+  it('requeues failed sends with daemon-side backoff', async () => {
     const send = transport.sendMessage('hello ChatGPT');
 
     const response = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
@@ -160,10 +164,55 @@ describe('ExtensionTransport', () => {
     const health = await fetch(`${transport.getBaseUrl()}/health`);
     await expect(health.json()).resolves.toMatchObject({
       pendingSendResults: 0,
+      retryingOutbound: 1,
+      retryingOutboundIds: [outbound.transportId],
       lastTransportError: {
         transportId: outbound.transportId,
         status: 'failed',
-        error: 'Timed out waiting for send button'
+        error: 'Timed out waiting for send button',
+        retrying: true
+      }
+    });
+
+    await delay(20);
+    const retryResponse = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
+    const retry = await retryResponse.json() as OutboundPollResponse;
+    expect(retry).toMatchObject({
+      transportId: outbound.transportId,
+      message: outbound.message
+    });
+  });
+
+  it('marks outbound sends as needing attention after retries are exhausted', async () => {
+    const send = transport.sendMessage('hello ChatGPT');
+
+    const firstResponse = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
+    const first = await firstResponse.json() as OutboundPollResponse;
+    await expect(send).resolves.toBeUndefined();
+
+    for (const error of ['Composer not ready', 'Send button unavailable', 'Still broken']) {
+      await postJson(`${transport.getBaseUrl()}/api/conduit-send-result`, {
+        transportId: first.transportId,
+        status: 'failed',
+        error
+      });
+      await delay(25);
+      const health = await fetch(`${transport.getBaseUrl()}/health`);
+      const state = await health.json() as any;
+      if (!state.lastTransportError?.exhausted) {
+        await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
+      }
+    }
+
+    const health = await fetch(`${transport.getBaseUrl()}/health`);
+    await expect(health.json()).resolves.toMatchObject({
+      retryingOutbound: 0,
+      lastTransportError: {
+        transportId: first.transportId,
+        status: 'failed',
+        exhausted: true,
+        needsAttention: true,
+        deliveryAttempts: 3
       }
     });
   });
@@ -173,6 +222,10 @@ interface OutboundPollResponse {
   type: string;
   transportId: string;
   message: string;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function postJson(url: string, body: unknown): Promise<any> {
