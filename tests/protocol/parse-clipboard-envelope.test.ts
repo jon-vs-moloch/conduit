@@ -18,6 +18,31 @@ describe('parseClipboardEnvelope', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('accepts compact exact envelopes while preserving clipboard metadata requirements', () => {
+    const result = parseClipboardEnvelope(JSON.stringify({
+      schema: 'conduit.request.v1',
+      source: {
+        kind: 'clipboard',
+        trust: 'untrusted'
+      },
+      permissions: [],
+      sessionId: 'sess_test',
+      nonce: 'call_test',
+      read: 'README.md',
+      reason: 'Need project context.'
+    }));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.block.actions).toHaveLength(1);
+      expect(result.block.actions[0]).toMatchObject({
+        tool: 'file.read',
+        args: { path: 'README.md' },
+        reason: 'Need project context.'
+      });
+    }
+  });
+
   it('rejects prose wrapped around a valid envelope', () => {
     const result = parseClipboardEnvelope([
       'Here is the command you should run:',

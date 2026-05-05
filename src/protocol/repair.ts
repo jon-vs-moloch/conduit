@@ -34,7 +34,7 @@ export function createRepairEnvelope(input: {
     expected: {
       exactEnvelope: true,
       schema: 'conduit.request.v1',
-      requiredFields: ['schema', 'source', 'permissions', 'sessionId', 'nonce', 'actions'],
+      requiredFields: ['schema', 'source', 'permissions', 'sessionId', 'nonce', 'actions or one compact action shortcut'],
       allowedClipboardForms: [
         'A single fenced ```conduit code block containing strict JSON.',
         'A single fenced ```conduit-json code block containing strict JSON.',
@@ -47,7 +47,8 @@ export function createRepairEnvelope(input: {
       'Include schema: conduit.request.v1.',
       'Include source metadata and declared permissions, even when permissions is an empty array.',
       'Include the current sessionId and currentNonce from this repair envelope when present.',
-      'Give every action a stable id.'
+      'For simple reads/lists, prefer compact shortcuts like read: "README.md" or list: ".".',
+      'For multi-action requests, use an actions array and give every action a stable id.'
     ],
     example: {
       schema: 'conduit.request.v1',
@@ -64,15 +65,9 @@ export function createRepairEnvelope(input: {
       ],
       sessionId,
       nonce,
-      actions: [
-        {
-          id: 'list_project',
-          tool: 'file.list',
-          args: { path: '.' },
-          reason: 'List the project root.',
-          risk: 'low'
-        }
-      ]
+      list: '.',
+      reason: 'List the project root.',
+      risk: 'low'
     }
   };
 }

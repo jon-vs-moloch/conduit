@@ -235,15 +235,9 @@ function createStarterEnvelope(sessionId: string, nonce: string): Record<string,
     permissions: [{ kind: 'filesystem', scope: 'project', access: 'read' }],
     sessionId,
     nonce,
-    actions: [
-      {
-        id: 'list_project',
-        tool: 'file.list',
-        args: { path: '.' },
-        reason: 'List the project root.',
-        risk: 'low'
-      }
-    ]
+    list: '.',
+    reason: 'List the project root.',
+    risk: 'low'
   };
 }
 

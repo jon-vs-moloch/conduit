@@ -107,21 +107,28 @@ Accepted agent-loop request shape:
   ],
   "sessionId": "sess_...",
   "nonce": "call_...",
-  "actions": [
-    {
-      "id": "list_project",
-      "tool": "file.list",
-      "args": { "path": "." },
-      "reason": "Inspect the project root.",
-      "risk": "low"
-    }
-  ]
+  "list": ".",
+  "reason": "Inspect the project root.",
+  "risk": "low"
 }
 ```
 
 The listener validates the paired session and nonce before executing actions.
 Successful results include `nextNonce`; the agent must use that nonce on the
 next request.
+
+For simple requests, Conduit accepts compact action shortcuts:
+
+- `read: "README.md"` -> `file.read`
+- `list: "."` -> `file.list`
+- `diff: "README.md"` -> `git.diff`
+- `status: true` -> `git.status`
+- `write: "path.txt", content: "...", mode: "create"` -> `file.write`
+- `patch: "diff --git ..."` -> `file.patch`
+- `shell: "npm test"` -> `shell.run`
+
+For multiple actions, use `actions: [...]`; each item can still use the same
+shortcuts, and Conduit will normalize them into canonical tool calls.
 
 Completion shape:
 
@@ -160,7 +167,8 @@ Clipboard-origin requests must include:
 - `permissions`
 - `sessionId`
 - `nonce`
-- stable action `id` values
+- either one compact action shortcut or `actions: [...]`
+- stable action `id` values for explicit multi-action requests
 
 ## Health And Logs
 

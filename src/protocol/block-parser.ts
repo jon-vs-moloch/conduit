@@ -9,7 +9,7 @@ export function parseDelimitedJsonBlock<T>(
   text: string,
   start: string,
   end: string,
-  schema: z.ZodType<T>
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>
 ): ParseResult<T> {
   const matches = [...text.matchAll(new RegExp(`${escapeRegExp(start)}([\\s\\S]*?)${escapeRegExp(end)}`, 'g'))];
 
@@ -37,7 +37,7 @@ export function parseDelimitedJsonBlock<T>(
 export function parseNamedJsonCodeBlock<T>(
   text: string,
   blockName: string,
-  schema: z.ZodType<T>
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>
 ): ParseResult<T> {
   const matches = extractProtocolBlocks(text).filter((block) => block.kind === blockName);
 

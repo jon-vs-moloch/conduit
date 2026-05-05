@@ -43,6 +43,7 @@ Lifecycle:
 - `run --transport extension` sends an initial task and exits on `conduit-final`.
 - `listen` keeps the bridge open.
 - In `listen` mode, a `conduit` or `conduit-call` request must include a valid paired session id and current nonce before actions execute.
+- Simple requests may use compact shortcuts such as `read`, `list`, `diff`, and `status`; the runtime normalizes them before policy checks.
 - In `listen` mode, a `conduit-final` closes the current session but leaves the listener active.
 - A later `conduit-call` starts a new session.
 - A `conduit-handshake-request` never creates a session by itself. It returns a repair/approval message asking the local user to choose **Copy Agent Handshake** from Conduit.

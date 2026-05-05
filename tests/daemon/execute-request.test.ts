@@ -107,6 +107,31 @@ describe('executeRequestFromText', () => {
     expect(updated?.currentNonce).toBe(output.nextNonce);
   });
 
+  it('executes a compact trusted request after normalization', async () => {
+    const session = await createSession({
+      label: 'Clipboard compact',
+      permissionProfile: 'read-only',
+      allowedRoots: [projectRoot],
+      transport: 'clipboard'
+    });
+
+    const output = await executeRequestFromText({
+      text: conduitBlock({
+        schema: 'conduit.request.v1',
+        source: { kind: 'clipboard', trust: 'untrusted' },
+        permissions: [],
+        sessionId: session.sessionId,
+        nonce: session.currentNonce,
+        read: 'README.md',
+        reason: 'Read the project README.'
+      })
+    });
+
+    expect(output.status).toBe('executed');
+    expect(output.rendered).toContain('hello request');
+    await expect(readFile(path.join(output.runDir!, 'actions.jsonl'), 'utf8')).resolves.toContain('"tool":"file.read"');
+  });
+
   it('rejects replayed nonces before execution', async () => {
     const session = await createSession({
       label: 'Clipboard',

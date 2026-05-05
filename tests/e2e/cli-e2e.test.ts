@@ -58,7 +58,7 @@ describe('Conduit CLI end-to-end flows', () => {
       ], stateRoot);
       expect(created.stdout).toContain('Starter request block:');
       expect(created.stdout).toContain('"schema": "conduit.request.v1"');
-      expect(created.stdout).toContain('"tool": "file.list"');
+      expect(created.stdout).toContain('"list": "."');
 
       const sessionId = created.stdout.match(/Created session ([^\n]+)/)?.[1];
       expect(sessionId).toBeTruthy();

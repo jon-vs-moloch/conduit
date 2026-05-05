@@ -60,7 +60,7 @@ describe('control panel app', () => {
 
     expect(created.session.label).toBe('App test');
     expect(created.starterEnvelope.schema).toBe('conduit.request.v1');
-    expect(created.starterEnvelope.actions[0].tool).toBe('file.list');
+    expect(created.starterEnvelope.list).toBe('.');
 
     const listed = await fetchJson(`${app.url}/api/sessions`);
     expect(listed.sessions).toHaveLength(1);

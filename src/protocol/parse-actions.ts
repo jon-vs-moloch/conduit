@@ -12,10 +12,10 @@ import { parseDelimitedJsonBlock, parseNamedJsonCodeBlock, type ParseResult } fr
  * embedded-block setting.
  */
 export function parseActions(text: string): ParseResult<ActionRequestBlock> {
-  const conduitRequestBlock = parseNamedJsonCodeBlock(text, 'conduit', ActionRequestBlockSchema);
-  const conduitBlock = parseNamedJsonCodeBlock(text, 'conduit-call', ActionRequestBlockSchema);
-  const veyrBlock = parseNamedJsonCodeBlock(text, 'veyr-call', ActionRequestBlockSchema);
-  const legacyBlock = parseDelimitedJsonBlock(text, ACTIONS_START, ACTIONS_END, ActionRequestBlockSchema);
+  const conduitRequestBlock = parseNamedJsonCodeBlock<ActionRequestBlock>(text, 'conduit', ActionRequestBlockSchema);
+  const conduitBlock = parseNamedJsonCodeBlock<ActionRequestBlock>(text, 'conduit-call', ActionRequestBlockSchema);
+  const veyrBlock = parseNamedJsonCodeBlock<ActionRequestBlock>(text, 'veyr-call', ActionRequestBlockSchema);
+  const legacyBlock = parseDelimitedJsonBlock<ActionRequestBlock>(text, ACTIONS_START, ACTIONS_END, ActionRequestBlockSchema);
   const presentBlocks = [conduitRequestBlock, conduitBlock, veyrBlock, legacyBlock].filter((block) => block.ok || block.kind !== 'none');
 
   if (presentBlocks.length > 1) {

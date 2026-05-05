@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizeCompactRequest } from './compact-request.js';
 
 export const ToolActionSchema = z.object({
   id: z.string().min(1),
@@ -8,7 +9,7 @@ export const ToolActionSchema = z.object({
   risk: z.enum(['low', 'medium', 'high']).optional()
 });
 
-export const ActionRequestBlockSchema = z.object({
+const CanonicalActionRequestBlockSchema = z.object({
   schema: z.literal('conduit.request.v1').optional(),
   type: z.union([
     z.literal('actions'),
@@ -43,6 +44,14 @@ export const ActionRequestBlockSchema = z.object({
   }
 });
 
+export type ToolAction = z.infer<typeof ToolActionSchema>;
+export type ActionRequestBlock = z.infer<typeof CanonicalActionRequestBlockSchema>;
+
+export const ActionRequestBlockSchema: z.ZodType<ActionRequestBlock, z.ZodTypeDef, unknown> = z.preprocess(
+  normalizeCompactRequest,
+  CanonicalActionRequestBlockSchema
+);
+
 export const ToolResultSchema = z.object({
   id: z.string().min(1),
   tool: z.string().min(1),
@@ -71,8 +80,6 @@ export const FinalBlockSchema = z.object({
   risks: z.array(z.string()).optional()
 });
 
-export type ToolAction = z.infer<typeof ToolActionSchema>;
-export type ActionRequestBlock = z.infer<typeof ActionRequestBlockSchema>;
 export type ToolResult = z.infer<typeof ToolResultSchema>;
 export type ToolResultsBlock = z.infer<typeof ToolResultsBlockSchema>;
 export type FinalBlock = z.infer<typeof FinalBlockSchema>;

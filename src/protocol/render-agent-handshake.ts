@@ -23,7 +23,8 @@ export function renderAgentHandshake(input: RenderAgentHandshakeInput): string {
       requestFence: 'conduit',
       resultFence: 'CONDUIT_RESULTS_JSON',
       includeFields: ['schema', 'source', 'permissions', 'sessionId', 'nonce', 'actions'],
-      schema: 'conduit.request.v1'
+      schema: 'conduit.request.v1',
+      compactActionShortcuts: ['read', 'list', 'diff', 'status', 'write', 'patch', 'shell']
     }
   };
 
@@ -40,7 +41,8 @@ export function renderAgentHandshake(input: RenderAgentHandshakeInput): string {
     '- Emit Conduit requests only as a single fenced `conduit` code block.',
     '- Include the provided `sessionId` and `nonce` in each request until Conduit returns a rotated `nextNonce`.',
     '- After every successful Conduit result, use the returned `nextNonce` for the next request.',
-    '- Use stable action IDs.',
+    '- Prefer compact shortcuts for simple work: `read`, `list`, `diff`, `status`, `write`, `patch`, or `shell`.',
+    '- Use stable action IDs when emitting an `actions` array with more than one action.',
     '- Request the narrowest permissions and tools that satisfy the task.',
     '- Treat write, patch, shell, install, and update actions as high-risk and explain why they are needed.',
     '- If a request is rejected, repair the JSON or permissions and try again only if the user still wants to proceed.',
@@ -69,15 +71,9 @@ export function renderAgentHandshake(input: RenderAgentHandshakeInput): string {
       ],
       sessionId: session.sessionId,
       nonce: session.currentNonce,
-      actions: [
-        {
-          id: 'list_project',
-          tool: 'file.list',
-          args: { path: '.' },
-          reason: 'Inspect the project root.',
-          risk: 'low'
-        }
-      ]
+      list: '.',
+      reason: 'Inspect the project root.',
+      risk: 'low'
     }, null, 2),
     '```'
   ].join('\n');

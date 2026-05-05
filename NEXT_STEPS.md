@@ -34,6 +34,12 @@ Current state:
   - `veyr-call`
   - `veyr-final`
   - legacy `ACTIONS_JSON` / `FINAL_JSON`
+- Compact action shortcuts are accepted and normalized before policy/execution:
+  - `read: "README.md"` -> `file.read`
+  - `list: "."` -> `file.list`
+  - `diff: "src/index.ts"` -> `git.diff`
+  - `status: true` -> `git.status`
+  - `write`, `patch`, and `shell` map to their corresponding high-risk tools
 - Session primitives are implemented:
   - `src/sessions/nonce.ts`
   - `src/sessions/profiles.ts`

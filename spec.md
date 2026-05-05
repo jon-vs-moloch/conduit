@@ -625,6 +625,44 @@ export interface ConduitAction {
 }
 ```
 
+### 10.4.1 Compact Action Shortcuts
+
+Conduit SHOULD accept a compact request form for simple model-authored calls,
+then normalize it into canonical `ConduitAction[]` before policy evaluation.
+
+The compact form is a usability layer, not a separate permission model.
+Session, nonce, source, permissions, policy, sandboxing, and exact-envelope
+requirements still apply.
+
+Single-action examples:
+
+```json
+{ "read": "README.md" }
+{ "list": "." }
+{ "diff": "src/index.ts" }
+{ "status": true }
+{ "write": "notes.txt", "content": "hello\n", "mode": "create" }
+{ "patch": "diff --git ..." }
+{ "shell": "npm test" }
+```
+
+These normalize to:
+
+```ts
+{
+  id: string
+  tool: 'file.read' | 'file.list' | 'git.diff' | 'git.status' | 'file.write' | 'file.patch' | 'shell.run'
+  args: Record<string, unknown>
+  reason?: string
+  risk?: 'low' | 'medium' | 'high'
+}
+```
+
+For multi-action requests, the `actions` array MAY contain compact action
+objects. Implementations SHOULD generate deterministic action IDs when a compact
+action omits `id`; explicit stable IDs remain preferred for multi-action agent
+requests.
+
 ### 10.5 Result Mode
 
 ```ts

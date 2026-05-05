@@ -66,6 +66,68 @@ describe('parseActions', () => {
     }
   });
 
+  it('normalizes a compact single-action conduit request', () => {
+    const result = parseActions([
+      '```conduit',
+      JSON.stringify({
+        schema: 'conduit.request.v1',
+        sessionId: 'sess_test',
+        nonce: 'call_test',
+        read: 'README.md',
+        reason: 'Need project context.',
+        risk: 'low'
+      }, null, 2),
+      '```'
+    ].join('\n'));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.block.actions).toHaveLength(1);
+      expect(result.block.actions[0]).toMatchObject({
+        tool: 'file.read',
+        args: { path: 'README.md' },
+        reason: 'Need project context.',
+        risk: 'low'
+      });
+      expect(result.block.actions[0]?.id).toMatch(/^file_read_[a-f0-9]{8}$/);
+    }
+  });
+
+  it('normalizes compact multi-action arrays with deterministic ids', () => {
+    const text = [
+      '```conduit',
+      JSON.stringify({
+        schema: 'conduit.request.v1',
+        sessionId: 'sess_test',
+        nonce: 'call_test',
+        actions: [
+          { list: '.', depth: 1 },
+          { action: 'diff', path: 'README.md' },
+          { tool: 'git.status' }
+        ]
+      }, null, 2),
+      '```'
+    ].join('\n');
+    const result = parseActions(text);
+    const secondResult = parseActions(text);
+
+    expect(result.ok).toBe(true);
+    expect(secondResult.ok).toBe(true);
+    if (result.ok && secondResult.ok) {
+      expect(result.block.actions.map((action) => action.tool)).toEqual([
+        'file.list',
+        'git.diff',
+        'git.status'
+      ]);
+      expect(result.block.actions[0]?.args).toEqual({ path: '.', depth: 1 });
+      expect(result.block.actions[1]?.args).toEqual({ path: 'README.md' });
+      expect(result.block.actions[2]?.args).toEqual({});
+      expect(result.block.actions.map((action) => action.id)).toEqual(
+        secondResult.block.actions.map((action) => action.id)
+      );
+    }
+  });
+
   it('parses a legacy veyr-call code block for migration compatibility', () => {
     const result = parseActions([
       '```veyr-call',

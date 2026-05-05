@@ -266,6 +266,34 @@ export const ConduitRequestSchema = z.object({
 });
 ````
 
+The parser also normalizes compact action shortcuts before schema validation.
+This keeps the model-facing form small while preserving the canonical executor
+contract:
+
+````json
+{ "read": "README.md" }
+{ "list": "." }
+{ "diff": "src/index.ts" }
+{ "status": true }
+{ "write": "notes.txt", "content": "hello\n", "mode": "create" }
+{ "patch": "diff --git ..." }
+{ "shell": "npm test" }
+````
+
+For multiple actions, `actions` may contain compact objects:
+
+````json
+{
+  "actions": [
+    { "id": "list_project", "list": "." },
+    { "id": "read_readme", "read": "README.md" }
+  ]
+}
+````
+
+All compact forms normalize to `actions: [{ id, tool, args, reason?, risk? }]`
+before policy evaluation.
+
 ### 1.3 Parse Result
 
 ````ts
