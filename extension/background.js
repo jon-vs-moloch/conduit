@@ -39,7 +39,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       url: message.url || sender.tab?.url,
       title: sender.tab?.title,
       status: message.status,
-      observedAt: message.observedAt || new Date().toISOString()
+      observedAt: message.observedAt || new Date().toISOString(),
+      transportId: message.transportId,
+      attempt: message.attempt,
+      elapsedMs: message.elapsedMs,
+      messageChars: message.messageChars,
+      error: message.error,
+      composer: message.composer
     }).catch((error) => {
       console.warn('[Conduit Bridge] Failed to report tab status:', error);
     });

@@ -78,6 +78,20 @@ function reportTabStatus(status) {
   });
 }
 
+function reportOutboundStatus(envelope, status, attempt, startedAt, extra = {}) {
+  safeSendMessage({
+    type: 'TAB_STATUS',
+    status,
+    url: location.href,
+    observedAt: new Date().toISOString(),
+    transportId: envelope.transportId,
+    attempt,
+    elapsedMs: startedAt ? Date.now() - startedAt : 0,
+    messageChars: envelope.message.length,
+    ...extra
+  });
+}
+
 function safeSendMessage(message, callback) {
   if (!extensionContextActive) return false;
   try {
@@ -362,6 +376,7 @@ async function sendMessageReliably(envelope) {
     try {
       if (findSentMessageByTransportId(envelope.transportId)) {
         deliveredTransportIds.add(envelope.transportId);
+        reportOutboundStatus(envelope, 'outbound_deduped', attempt, startedAt);
         reportSendResult('sent', envelope, attempt, undefined, true);
         return;
       }
@@ -370,41 +385,53 @@ async function sendMessageReliably(envelope) {
       if (!composer) throw new Error('Composer not ready');
 
       console.log(`[Conduit Bridge] outbound ${envelope.transportId} insert attempt=${attempt} composer=${describeElement(composer)}`);
+      reportOutboundStatus(envelope, 'outbound_insert_start', attempt, startedAt, {
+        composer: describeElement(composer)
+      });
       await clearComposerIfNeeded(composer, envelope.transportId);
       if (!composerTextIncludes(composer, envelope.transportId)) {
         const inserted = setComposerText(composer, envelope.message);
         if (!inserted) throw new Error('Composer text insertion failed');
       }
 
+      reportOutboundStatus(envelope, 'outbound_waiting_for_stable_composer', attempt, startedAt);
       await waitForComposerStable(composer, 30_000);
       console.log(`[Conduit Bridge] outbound ${envelope.transportId} composer stable after ${Date.now() - startedAt}ms`);
+      reportOutboundStatus(envelope, 'outbound_waiting_for_uploads', attempt, startedAt);
       await waitForUploadsSettled(composer, 60_000);
       console.log(`[Conduit Bridge] outbound ${envelope.transportId} uploads settled after ${Date.now() - startedAt}ms`);
+      reportOutboundStatus(envelope, 'outbound_waiting_for_send_button', attempt, startedAt);
       const sendButton = await waitForSendEnabled(composer, 60_000);
       await delay(250);
       if (!isSendButtonEnabled(sendButton) || !composerHasContentOrAttachment(composer)) {
         throw new Error('Send button unavailable');
       }
 
+      reportOutboundStatus(envelope, 'outbound_click_send', attempt, startedAt);
       sendButton.click();
       console.log(`[Conduit Bridge] outbound ${envelope.transportId} clicked send`);
+      reportOutboundStatus(envelope, 'outbound_waiting_for_commit', attempt, startedAt);
       await waitForMessageCommitted(envelope.transportId, 45_000);
       console.log(`[Conduit Bridge] outbound ${envelope.transportId} committed after ${Date.now() - startedAt}ms`);
       deliveredTransportIds.add(envelope.transportId);
+      reportOutboundStatus(envelope, 'outbound_committed', attempt, startedAt);
       reportSendResult('sent', envelope, attempt);
       return;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const retryable = isRetryableSendError(message);
       console.warn(`[Conduit Bridge] outbound ${envelope.transportId} attempt=${attempt} failed retryable=${retryable} error="${message}"`);
+      reportOutboundStatus(envelope, 'outbound_attempt_failed', attempt, startedAt, { error: message });
 
       if (findSentMessageByTransportId(envelope.transportId)) {
         deliveredTransportIds.add(envelope.transportId);
+        reportOutboundStatus(envelope, 'outbound_deduped_after_failure', attempt, startedAt);
         reportSendResult('sent', envelope, attempt, undefined, true);
         return;
       }
 
       if (!retryable || attempt === SEND_MAX_ATTEMPTS) {
+        reportOutboundStatus(envelope, 'outbound_failed', attempt, startedAt, { error: message });
         reportSendResult('failed', envelope, attempt, message);
         return;
       }

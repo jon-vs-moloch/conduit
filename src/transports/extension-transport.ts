@@ -2,6 +2,7 @@ import http from 'node:http';
 import type { AssistantTurn, ModelTransport, WaitOptions } from './types.js';
 
 const DEFAULT_PORT = 3333;
+const SEND_RESULT_TIMEOUT_MS = 300_000;
 
 export interface ExtensionTransportOptions {
   port?: number;
@@ -52,6 +53,7 @@ export class ExtensionTransport implements ModelTransport {
     resolve: () => void;
     reject: (error: Error) => void;
     timeout: NodeJS.Timeout;
+    createdAt: string;
   }>();
   private deliveredOutboundCount = 0;
   private receivedInboundCount = 0;
@@ -180,6 +182,7 @@ export class ExtensionTransport implements ModelTransport {
         deliveredOutboundCount: this.deliveredOutboundCount,
         receivedInboundCount: this.receivedInboundCount,
         pendingSendResults: this.pendingSendResults.size,
+        pendingSendResultIds: [...this.pendingSendResults.keys()],
         tabStatusCount: this.tabStatusCount,
         lastTabStatus: this.lastTabStatus,
         lastOutboundAt: this.lastOutboundAt,
@@ -308,8 +311,13 @@ export class ExtensionTransport implements ModelTransport {
         };
         this.lastSendResult = this.lastTransportError;
         reject(error);
-      }, 120_000);
-      this.pendingSendResults.set(transportId, { resolve, reject, timeout });
+      }, SEND_RESULT_TIMEOUT_MS);
+      this.pendingSendResults.set(transportId, {
+        resolve,
+        reject,
+        timeout,
+        createdAt: new Date().toISOString()
+      });
     });
   }
 
