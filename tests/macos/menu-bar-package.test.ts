@@ -92,6 +92,7 @@ describe('macOS menu-bar package scaffold', () => {
     const content = await readText('extension/content.js');
     expect(background).toContain('/api/conduit-tab-status');
     expect(content).toContain('content_script_alive');
+    expect(content).toContain('outbound_received');
     expect(content).toContain("['conduit', 'conduit-call'");
     expect(content).toContain('safeSendMessage');
     expect(content).toContain('getRuntimeLastError');

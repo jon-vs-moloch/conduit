@@ -8,6 +8,7 @@ describe('ExtensionTransport', () => {
     transport = new ExtensionTransport({
       port: 0,
       sendResultTimeoutMs: 75,
+      sendProgressTimeoutMs: 40,
       sendRetryDelaysMs: [10, 20]
     });
     await transport.open();
@@ -180,6 +181,61 @@ describe('ExtensionTransport', () => {
     expect(retry).toMatchObject({
       transportId: outbound.transportId,
       message: outbound.message
+    });
+  });
+
+  it('requeues stalled sends when the extension reports no send progress', async () => {
+    const send = transport.sendMessage('hello ChatGPT');
+
+    const response = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
+    const outbound = await response.json() as OutboundPollResponse;
+    await expect(send).resolves.toBeUndefined();
+
+    await delay(55);
+
+    const health = await fetch(`${transport.getBaseUrl()}/health`);
+    const state = await health.json() as any;
+    expect(state).toMatchObject({
+      pendingSendResults: 0,
+      lastTransportError: {
+        transportId: outbound.transportId,
+        status: 'timeout',
+        retrying: true
+      }
+    });
+    expect(state.retryingOutboundIds.includes(outbound.transportId) || state.outboundQueued > 0).toBe(true);
+
+    await delay(15);
+    const retryResponse = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
+    const retry = await retryResponse.json() as OutboundPollResponse;
+    expect(retry.transportId).toBe(outbound.transportId);
+  });
+
+  it('keeps waiting while the extension reports send progress', async () => {
+    const send = transport.sendMessage('hello ChatGPT');
+
+    const response = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
+    const outbound = await response.json() as OutboundPollResponse;
+    await expect(send).resolves.toBeUndefined();
+
+    await delay(25);
+    await postJson(`${transport.getBaseUrl()}/api/conduit-tab-status`, {
+      tabId: 42,
+      status: 'outbound_waiting_for_send_button',
+      transportId: outbound.transportId
+    });
+    await delay(10);
+
+    const health = await fetch(`${transport.getBaseUrl()}/health`);
+    await expect(health.json()).resolves.toMatchObject({
+      pendingSendResults: 1,
+      retryingOutbound: 0,
+      pendingSendResultIds: [outbound.transportId]
+    });
+
+    await postJson(`${transport.getBaseUrl()}/api/conduit-send-result`, {
+      transportId: outbound.transportId,
+      status: 'sent'
     });
   });
 

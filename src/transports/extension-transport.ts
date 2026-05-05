@@ -3,11 +3,13 @@ import type { AssistantTurn, ModelTransport, WaitOptions } from './types.js';
 
 const DEFAULT_PORT = 3333;
 const SEND_RESULT_TIMEOUT_MS = 300_000;
+const SEND_PROGRESS_TIMEOUT_MS = 90_000;
 const SEND_RETRY_DELAYS_MS = [5_000, 15_000, 30_000];
 
 export interface ExtensionTransportOptions {
   port?: number;
   sendResultTimeoutMs?: number;
+  sendProgressTimeoutMs?: number;
   sendRetryDelaysMs?: number[];
 }
 
@@ -43,6 +45,7 @@ interface ExtensionTabStatusPayload {
   url?: unknown;
   title?: unknown;
   status?: unknown;
+  transportId?: unknown;
   observedAt?: unknown;
 }
 
@@ -56,8 +59,11 @@ export class ExtensionTransport implements ModelTransport {
   private seenIncomingKeys = new Set<string>();
   private pendingSendResults = new Map<string, {
     delivery: OutboundDelivery;
-    timeout: NodeJS.Timeout;
+    resultTimeout: NodeJS.Timeout;
+    progressTimeout: NodeJS.Timeout;
     createdAt: string;
+    lastProgressAt: string;
+    lastProgressStatus?: string;
   }>();
   private retryingOutbound = new Map<string, {
     delivery: OutboundDelivery;
@@ -100,7 +106,8 @@ export class ExtensionTransport implements ModelTransport {
     }
 
     for (const [transportId, pending] of this.pendingSendResults) {
-      clearTimeout(pending.timeout);
+      clearTimeout(pending.resultTimeout);
+      clearTimeout(pending.progressTimeout);
       console.warn(`[ExtensionTransport] Extension transport closed before outbound ${transportId} was confirmed.`);
     }
     this.pendingSendResults.clear();
@@ -235,6 +242,7 @@ export class ExtensionTransport implements ModelTransport {
       this.lastTabStatus = body;
       this.tabStatusCount += 1;
       console.log('[ExtensionTransport] Tab status from extension:', body);
+      this.recordSendProgress(body);
       sendJson(res, 200, { status: 'ok' });
       return;
     }
@@ -332,10 +340,11 @@ export class ExtensionTransport implements ModelTransport {
     const transportId = delivery.transportId;
     const existing = this.pendingSendResults.get(transportId);
     if (existing) {
-      clearTimeout(existing.timeout);
+      clearTimeout(existing.resultTimeout);
+      clearTimeout(existing.progressTimeout);
     }
     this.pendingSendResults.delete(transportId);
-    const timeout = setTimeout(() => {
+    const resultTimeout = setTimeout(() => {
       this.pendingSendResults.delete(transportId);
       const error = `Timed out waiting for extension to confirm outbound ${transportId} was sent.`;
       this.lastTransportError = {
@@ -347,10 +356,15 @@ export class ExtensionTransport implements ModelTransport {
       this.lastSendResult = this.lastTransportError;
       this.scheduleSendRetry(delivery, error, 'timeout');
     }, this.options.sendResultTimeoutMs ?? SEND_RESULT_TIMEOUT_MS);
+    const progressTimeout = this.createProgressTimeout(delivery, 'outbound_delivered');
+    const now = new Date().toISOString();
     this.pendingSendResults.set(transportId, {
       delivery,
-      timeout,
-      createdAt: new Date().toISOString()
+      resultTimeout,
+      progressTimeout,
+      createdAt: now,
+      lastProgressAt: now,
+      lastProgressStatus: 'outbound_delivered'
     });
   }
 
@@ -361,7 +375,8 @@ export class ExtensionTransport implements ModelTransport {
     const pending = this.pendingSendResults.get(transportId);
     if (!pending) return;
 
-    clearTimeout(pending.timeout);
+    clearTimeout(pending.resultTimeout);
+    clearTimeout(pending.progressTimeout);
     this.pendingSendResults.delete(transportId);
 
     if (body?.status === 'sent') {
@@ -437,6 +452,39 @@ export class ExtensionTransport implements ModelTransport {
       retryAt,
       error
     });
+  }
+
+  private recordSendProgress(body: ExtensionTabStatusPayload | null): void {
+    const transportId = typeof body?.transportId === 'string' ? body.transportId : null;
+    if (!transportId) return;
+    const pending = this.pendingSendResults.get(transportId);
+    if (!pending) return;
+
+    clearTimeout(pending.progressTimeout);
+    pending.lastProgressAt = new Date().toISOString();
+    pending.lastProgressStatus = typeof body?.status === 'string' ? body.status : undefined;
+    pending.progressTimeout = this.createProgressTimeout(pending.delivery, pending.lastProgressStatus ?? 'outbound_progress');
+  }
+
+  private createProgressTimeout(delivery: OutboundDelivery, lastProgressStatus: string): NodeJS.Timeout {
+    return setTimeout(() => {
+      const pending = this.pendingSendResults.get(delivery.transportId);
+      if (!pending) return;
+      clearTimeout(pending.resultTimeout);
+      clearTimeout(pending.progressTimeout);
+      this.pendingSendResults.delete(delivery.transportId);
+      const error = `No extension send progress after ${lastProgressStatus} for outbound ${delivery.transportId}.`;
+      this.lastTransportError = {
+        transportId: delivery.transportId,
+        status: 'stalled',
+        error,
+        lastProgressStatus,
+        lastProgressAt: pending.lastProgressAt,
+        observedAt: new Date().toISOString()
+      };
+      this.lastSendResult = this.lastTransportError;
+      this.scheduleSendRetry(delivery, error, 'timeout');
+    }, this.options.sendProgressTimeoutMs ?? SEND_PROGRESS_TIMEOUT_MS);
   }
 }
 

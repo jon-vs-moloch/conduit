@@ -76,8 +76,9 @@ Interpretation:
 - `outboundQueued > 0`: the extension has not picked up the next harness message yet.
 - `deliveredOutboundCount` increased but `pendingSendResults > 0`: the content script has accepted an outbound message and is still trying to insert/send it. The listener can continue processing inbound protocol blocks while this confirmation remains pending.
 - `retryingOutbound > 0`: the daemon is retrying a failed or timed-out outbound send with backoff. The retry reuses the same `transportId` so the content script can dedupe if the message actually committed.
+- `lastTransportError.status === "stalled"` or `lastTransportError.error` mentioning send progress: the extension picked up an outbound message but stopped reporting send stages. The daemon will requeue it with backoff rather than waiting for the full send-result timeout.
 - `lastTransportError.needsAttention === true`: daemon retries are exhausted. The user should reload the ChatGPT tab/extension or use a manual retry surface once available.
-- `lastTabStatus.status` beginning with `outbound_`: the content script is reporting its current send stage, such as composer insertion, send-button wait, or commit verification.
+- `lastTabStatus.status` beginning with `outbound_`: the content script is reporting its current send stage, such as outbound receipt, composer insertion, send-button wait, or commit verification.
 - `lastTransportError`: the local runtime saw an outbound send failure, timeout, retry, or exhausted retry state.
 - `lastSendResult.status === "failed"`: the content script could not insert/send the outbound message. The error is telemetry; the persistent listener remains alive for later inbound blocks.
 - `lastSendResult.status === "sent"`: the runtime has confirmed the outbound message was committed to the conversation.

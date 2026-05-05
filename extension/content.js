@@ -325,6 +325,7 @@ function pollForOutboundMessages() {
     if (response && response.message) {
       const envelope = normalizeOutboundEnvelope(response);
       console.log(`[Conduit Bridge] Received outbound ${envelope.transportId} from Conduit CLI (${envelope.message.length} chars).`);
+      reportOutboundStatus(envelope, 'outbound_received', 0, Date.now());
       void sendMessageReliably(envelope).catch((error) => {
         const messageText = error instanceof Error ? error.message : String(error);
         console.error('[Conduit Bridge] Unhandled send failure:', error);
