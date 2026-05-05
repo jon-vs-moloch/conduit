@@ -187,6 +187,85 @@ describe('processListenTurn', () => {
     expect(updated?.currentNonce).not.toBe(paired.currentNonce);
   });
 
+  it('returns the active replacement nonce when a stale nonce is rejected', async () => {
+    const transport = new FakeTransport([]);
+    const paired = await createSession({
+      label: 'Extension',
+      permissionProfile: 'read-only',
+      allowedRoots: [projectRoot],
+      transport: 'extension'
+    });
+    const staleNonce = paired.currentNonce;
+    await processListenTurn({
+      assistantTurn: {
+        text: [
+          '```conduit',
+          JSON.stringify({
+            schema: 'conduit.request.v1',
+            source: { kind: 'chat', trust: 'paired-session' },
+            permissions: [],
+            sessionId: paired.sessionId,
+            nonce: staleNonce,
+            actions: [
+              {
+                id: 'read_readme',
+                tool: 'file.read',
+                args: { path: 'README.md' },
+                reason: 'Need context.',
+                risk: 'low'
+              }
+            ]
+          }),
+          '```'
+        ].join('\n'),
+        timestamp: '2026-05-04T00:00:01.000Z'
+      },
+      projectRoot,
+      transport,
+      session: null,
+      requireTrustedSession: true
+    });
+    const rotated = await getSession(paired.sessionId);
+
+    const replay = await processListenTurn({
+      assistantTurn: {
+        text: [
+          '```conduit',
+          JSON.stringify({
+            schema: 'conduit.request.v1',
+            source: { kind: 'chat', trust: 'paired-session' },
+            permissions: [],
+            sessionId: paired.sessionId,
+            nonce: staleNonce,
+            actions: [
+              {
+                id: 'read_readme',
+                tool: 'file.read',
+                args: { path: 'README.md' },
+                reason: 'Need context again.',
+                risk: 'low'
+              }
+            ]
+          }),
+          '```'
+        ].join('\n'),
+        timestamp: '2026-05-04T00:00:02.000Z'
+      },
+      projectRoot,
+      transport,
+      session: null,
+      requireTrustedSession: true
+    });
+
+    expect(replay.status).toBe('protocol_error');
+    expect(rotated?.currentNonce).toBeTruthy();
+    expect(rotated?.currentNonce).not.toBe(staleNonce);
+    expect(transport.sentMessages[1]).toContain('"code": "invalid_session"');
+    expect(transport.sentMessages[1]).toContain('"currentNonce"');
+    expect(transport.sentMessages[1]).toContain(rotated!.currentNonce);
+    expect(transport.sentMessages[1]).not.toContain(`"nonce": "${staleNonce}"`);
+  });
+
   it('does not auto-pair when an agent initiates a handshake request', async () => {
     const transport = new FakeTransport([]);
 

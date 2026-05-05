@@ -6,7 +6,7 @@ import { parseHandshakeRequest } from '../protocol/parse-handshake-request.js';
 import { renderConduitRepair, renderConduitResults, renderProtocolError, renderToolResults } from '../protocol/render-results.js';
 import { createRepairEnvelope } from '../protocol/repair.js';
 import type { FinalBlock, ToolResult } from '../protocol/schemas.js';
-import { consumeSessionNonce, validateSessionNonce } from '../sessions/session-store.js';
+import { consumeSessionNonce, getSession, validateSessionNonce } from '../sessions/session-store.js';
 import { getRunDir } from '../state/paths.js';
 import { appendJsonl, ensureRunDir, writeTextFile } from '../state/logs.js';
 import type { AssistantTurn, ModelTransport } from '../transports/types.js';
@@ -159,7 +159,7 @@ export async function processListenTurn(input: {
 
   const session = await ensureSession(input.session, input.projectRoot);
   await logAssistantTurn(session, input.assistantTurn);
-  const errorMessage = renderProtocolError('No valid conduit-call or conduit-final block was found.');
+  const errorMessage = renderProtocolError('No valid conduit request block or conduit-final block was found.');
   await input.transport.sendMessage(errorMessage);
   await logUserMessage(session, errorMessage);
   return { status: 'protocol_error', session };
@@ -185,13 +185,15 @@ async function validateAndConsumeAgentRequest(request: {
 
   const validation = await validateSessionNonce(request.sessionId, request.nonce);
   if (!validation.ok) {
+    const session = await getSession(request.sessionId);
     return {
       ok: false,
       repair: createRepairEnvelope({
         reason: validation.reason,
         code: 'invalid_session',
         request,
-        sessionId: request.sessionId
+        sessionId: request.sessionId,
+        ...(session?.state === 'active' ? { currentNonce: session.currentNonce } : {})
       })
     };
   }

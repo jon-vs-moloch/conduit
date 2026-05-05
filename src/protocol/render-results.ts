@@ -57,6 +57,7 @@ export interface ConduitRepairEnvelope {
     | 'invalid_permissions'
     | 'request_rejected';
   sessionId?: string;
+  currentNonce?: string;
   expected: {
     exactEnvelope: true;
     schema: 'conduit.request.v1';
@@ -96,7 +97,7 @@ export function renderProtocolError(message: string): string {
     'PROTOCOL ERROR:',
     message,
     '',
-    'Please fix this error and emit exactly one valid conduit-call or conduit-final block.'
+    'Please fix this error and emit exactly one valid conduit request block or one conduit-final block.'
   ].join('\n');
 }
 

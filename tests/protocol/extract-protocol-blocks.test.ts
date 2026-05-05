@@ -80,6 +80,21 @@ describe('extractProtocolBlocks', () => {
     expect(blocks[0]?.jsonText).toContain('read_readme');
   });
 
+  it('extracts rendered plain conduit request blocks without markdown fences', () => {
+    const blocks = extractProtocolBlocks([
+      'Thought for a couple of seconds',
+      '',
+      'conduit',
+      'Copy',
+      '{ "schema": "conduit.request.v1", "source": { "kind": "chat", "trust": "paired-session" }, "permissions": [], "sessionId": "sess_test", "nonce": "call_test", "actions": [{ "id": "read_readme", "tool": "file.read", "args": { "path": "README.md" }, "reason": "Need context.", "risk": "low" }] }'
+    ].join('\n'));
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]?.kind).toBe('conduit');
+    expect(blocks[0]?.text).toContain('```conduit');
+    expect(blocks[0]?.jsonText).toContain('sess_test');
+  });
+
   it('extracts legacy veyr named blocks during migration', () => {
     const blocks = extractProtocolBlocks([
       '```veyr-call',

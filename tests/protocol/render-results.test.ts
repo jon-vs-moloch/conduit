@@ -30,6 +30,8 @@ describe('renderConduitRepair', () => {
       status: 'rejected',
       reason: 'Invalid JSON.',
       code: 'malformed_json',
+      sessionId: 'sess_test',
+      currentNonce: 'call_current',
       expected: {
         exactEnvelope: true,
         schema: 'conduit.request.v1',
@@ -41,8 +43,8 @@ describe('renderConduitRepair', () => {
         schema: 'conduit.request.v1',
         source: { kind: 'clipboard', trust: 'untrusted' },
         permissions: [],
-        sessionId: 'sess_...',
-        nonce: 'call_...',
+        sessionId: 'sess_test',
+        nonce: 'call_current',
         actions: []
       }
     });
@@ -56,6 +58,13 @@ describe('renderConduitRepair', () => {
       type: 'conduit.repair.v1',
       status: 'rejected',
       code: 'malformed_json'
+    });
+    expect(JSON.parse(json!)).toMatchObject({
+      sessionId: 'sess_test',
+      currentNonce: 'call_current',
+      example: {
+        nonce: 'call_current'
+      }
     });
   });
 });

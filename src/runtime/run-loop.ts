@@ -98,7 +98,7 @@ export async function runLoop(input: RunInput): Promise<RunOutput> {
         continue;
       }
 
-      let protocolError = 'You did not include a valid conduit-call or conduit-final block. Please respond with exactly one of those blocks.';
+      let protocolError = 'You did not include a valid conduit request block or conduit-final block. Please respond with exactly one of those blocks.';
       if (!actionsResult.ok && actionsResult.kind === 'malformed') {
         protocolError = `The ACTIONS_JSON block was malformed: ${actionsResult.error}`;
       } else if (!finalResult.ok && finalResult.kind === 'malformed') {

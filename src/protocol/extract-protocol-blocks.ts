@@ -73,12 +73,16 @@ function extractLegacyBlocks(
 
 function extractRenderedNamedBlocks(text: string): ExtractedProtocolBlock[] {
   const blocks: ExtractedProtocolBlock[] = [];
-  for (const kind of ['conduit-call', 'conduit-final', 'conduit-handshake-request', 'veyr-call', 'veyr-final'] as const) {
+  for (const kind of ['conduit', 'conduit-call', 'conduit-final', 'conduit-handshake-request', 'veyr-call', 'veyr-final'] as const) {
     let searchFrom = 0;
     while (searchFrom < text.length) {
       const labelIndex = text.indexOf(kind, searchFrom);
       if (labelIndex === -1) break;
       if (isInsideFencedBlock(text, labelIndex)) {
+        searchFrom = labelIndex + kind.length;
+        continue;
+      }
+      if (!isRenderedLabelLine(text, labelIndex, kind)) {
         searchFrom = labelIndex + kind.length;
         continue;
       }
@@ -178,4 +182,15 @@ function isInsideFencedBlock(text: string, index: number): boolean {
   const before = text.slice(0, index);
   const fenceCount = before.match(/```/g)?.length ?? 0;
   return fenceCount % 2 === 1;
+}
+
+function isRenderedLabelLine(text: string, index: number, kind: string): boolean {
+  const previous = index === 0 ? '\n' : text[index - 1];
+  if (previous !== '\n') {
+    return false;
+  }
+
+  const lineEnd = text.indexOf('\n', index);
+  const labelLine = text.slice(index, lineEnd === -1 ? text.length : lineEnd).trim();
+  return labelLine === kind;
 }

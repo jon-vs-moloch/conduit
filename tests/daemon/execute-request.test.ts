@@ -68,7 +68,7 @@ describe('executeRequestFromText', () => {
     expect(output.rendered).toContain('<<<CONDUIT_REPAIR_JSON');
     expect(output.rendered).toContain('"type": "conduit.repair.v1"');
     expect(output.rendered).toContain('"code": "malformed_json"');
-    expect(output.rendered).toContain('Copy only the repaired Conduit envelope');
+    expect(output.rendered).toContain('copy only one exact Conduit envelope');
   });
 
   it('executes a trusted request, rotates the nonce, and writes Conduit results', async () => {
