@@ -10,14 +10,20 @@
   "host_permissions": [
     "http://127.0.0.1:3333/*",
     "http://localhost:3333/*",
-    "https://chatgpt.com/*"
+    "https://chatgpt.com/*",
+    "https://*.chatgpt.com/*",
+    "https://chat.openai.com/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["*://chatgpt.com/*"],
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://*.chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
       "js": ["content.js"]
     }
   ]

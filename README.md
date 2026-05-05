@@ -197,6 +197,8 @@ Open Conduit menu bar app -> Copy Agent Handshake
 
 Paste the copied handshake into a real ChatGPT tab to introduce Conduit, create a paired `extension` session, and give the model the initial `sessionId` and `nonce` for elevated agent-loop requests. The menu-bar agent listener keeps the browser extension bridge open on `127.0.0.1:3333` so detected action blocks can round-trip results back into the chat.
 
+If the extension appears enabled but no round trip happens, check `curl http://127.0.0.1:3333/health`. `tabStatusCount: 0` means the ChatGPT tab has not reported a live content script; reload the unpacked extension from `chrome://extensions/`, then reload the ChatGPT tab.
+
 Auth/browser troubleshooting has its own plan in [docs/auth-troubleshooting.md](docs/auth-troubleshooting.md).
 The principled browser-extension transport plan is in [docs/extension-transport-plan.md](docs/extension-transport-plan.md).
 

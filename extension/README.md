@@ -12,6 +12,7 @@ The extension does not bypass auth, solve verification challenges, extract cooki
 - Passes the payload from the restricted content script to the unrestricted background service worker.
 - Forwards the payload via `POST` to `http://127.0.0.1:3333/api/conduit-call`.
 - Polls `http://127.0.0.1:3333/api/conduit-outbound` for harness messages to send back into ChatGPT.
+- Reports content-script heartbeat status to `http://127.0.0.1:3333/api/conduit-tab-status`.
 
 ## How to Install (Unpacked)
 1. Open Google Chrome or Brave.
@@ -69,6 +70,8 @@ curl http://127.0.0.1:3333/health
 
 Interpretation:
 
+- `tabStatusCount === 0`: no ChatGPT content script has reported in. Reload the unpacked extension from `chrome://extensions/`, then reload the ChatGPT tab.
+- `lastTabStatus.url`: the latest ChatGPT tab that reported the content script alive.
 - `outboundQueued > 0`: the extension has not picked up the next harness message yet.
 - `deliveredOutboundCount` increased but `lastSendResult` is absent: the content script likely failed before reporting; reload the extension and inspect the tab console.
 - `lastSendResult.status === "failed"`: the runtime should stop or retry based on the reported browser send failure instead of waiting for ChatGPT.

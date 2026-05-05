@@ -11,6 +11,9 @@ const observer = new MutationObserver(() => {
   scheduleScan();
 });
 
+reportTabStatus('content_script_loaded');
+setInterval(() => reportTabStatus('content_script_alive'), 10_000);
+
 let scanTimer = null;
 function scheduleScan() {
   if (scanTimer) return;
@@ -56,6 +59,15 @@ function scanLatestAssistantMessage() {
       observedAt: new Date().toISOString()
     });
   }
+}
+
+function reportTabStatus(status) {
+  chrome.runtime.sendMessage({
+    type: 'TAB_STATUS',
+    status,
+    url: location.href,
+    observedAt: new Date().toISOString()
+  });
 }
 
 function findLatestAssistantMessage() {

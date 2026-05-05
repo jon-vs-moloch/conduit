@@ -20,8 +20,29 @@ describe('ExtensionTransport', () => {
       status: 'ok',
       deliveredOutboundCount: 0,
       receivedInboundCount: 0,
+      tabStatusCount: 0,
+      lastTabStatus: null,
       lastOutboundAt: null,
       lastSendResult: null
+    });
+  });
+
+  it('records extension tab status heartbeats', async () => {
+    await postJson(`${transport.getBaseUrl()}/api/conduit-tab-status`, {
+      tabId: 42,
+      url: 'https://chatgpt.com/c/test',
+      status: 'content_script_alive',
+      observedAt: '2026-05-05T00:00:00.000Z'
+    });
+
+    const response = await fetch(`${transport.getBaseUrl()}/health`);
+    await expect(response.json()).resolves.toMatchObject({
+      tabStatusCount: 1,
+      lastTabStatus: {
+        tabId: 42,
+        url: 'https://chatgpt.com/c/test',
+        status: 'content_script_alive'
+      }
     });
   });
 

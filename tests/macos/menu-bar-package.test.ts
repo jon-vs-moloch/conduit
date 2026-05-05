@@ -71,6 +71,26 @@ describe('macOS menu-bar package scaffold', () => {
     expect(manifest.artifacts[0].url).toContain('Conduit.zip');
   });
 
+  it('loads the extension on ChatGPT origins and permits localhost bridge access', async () => {
+    const manifest = JSON.parse(await readText('extension/manifest.json'));
+    expect(manifest.host_permissions).toEqual(expect.arrayContaining([
+      'http://127.0.0.1:3333/*',
+      'https://chatgpt.com/*',
+      'https://*.chatgpt.com/*',
+      'https://chat.openai.com/*'
+    ]));
+    expect(manifest.content_scripts[0].matches).toEqual(expect.arrayContaining([
+      'https://chatgpt.com/*',
+      'https://*.chatgpt.com/*',
+      'https://chat.openai.com/*'
+    ]));
+
+    const background = await readText('extension/background.js');
+    const content = await readText('extension/content.js');
+    expect(background).toContain('/api/conduit-tab-status');
+    expect(content).toContain('content_script_alive');
+  });
+
   it('exposes package scripts and a Codex run action for local launch', async () => {
     const packageJson = JSON.parse(await readText('package.json'));
     expect(packageJson.scripts['macos:build']).toBe('./script/build_and_run.sh --build-only');

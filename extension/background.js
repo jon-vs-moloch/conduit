@@ -33,6 +33,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  if (message.type === 'TAB_STATUS') {
+    postJson('/api/conduit-tab-status', {
+      tabId: sender.tab?.id,
+      url: message.url || sender.tab?.url,
+      title: sender.tab?.title,
+      status: message.status,
+      observedAt: message.observedAt || new Date().toISOString()
+    }).catch((error) => {
+      console.warn('[Conduit Bridge] Failed to report tab status:', error);
+    });
+    return false;
+  }
+
   if (message.type === 'POLL_OUTBOUND') {
     fetch(`${BRIDGE_BASE_URL}/api/conduit-outbound`)
       .then((response) => {

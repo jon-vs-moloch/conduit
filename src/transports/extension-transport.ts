@@ -32,6 +32,14 @@ interface ExtensionSendResultPayload {
   tabId?: unknown;
 }
 
+interface ExtensionTabStatusPayload {
+  tabId?: unknown;
+  url?: unknown;
+  title?: unknown;
+  status?: unknown;
+  observedAt?: unknown;
+}
+
 export class ExtensionTransport implements ModelTransport {
   private server: http.Server | null = null;
   private outboundQueue: OutboundDelivery[] = [];
@@ -50,6 +58,8 @@ export class ExtensionTransport implements ModelTransport {
   private outboundCounter = 0;
   private lastOutboundAt: string | null = null;
   private lastSendResult: unknown = null;
+  private tabStatusCount = 0;
+  private lastTabStatus: unknown = null;
 
   constructor(private readonly options: ExtensionTransportOptions = {}) {}
 
@@ -168,6 +178,8 @@ export class ExtensionTransport implements ModelTransport {
         pendingPolls: this.pendingOutboundResponses.length,
         deliveredOutboundCount: this.deliveredOutboundCount,
         receivedInboundCount: this.receivedInboundCount,
+        tabStatusCount: this.tabStatusCount,
+        lastTabStatus: this.lastTabStatus,
         lastOutboundAt: this.lastOutboundAt,
         lastSendResult: this.lastSendResult
       });
@@ -189,6 +201,15 @@ export class ExtensionTransport implements ModelTransport {
       this.lastSendResult = body;
       console.log('[ExtensionTransport] Send result from extension:', body);
       this.resolveSendResult(body);
+      sendJson(res, 200, { status: 'ok' });
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/api/conduit-tab-status') {
+      const body = await readJsonBody(req).catch(() => null) as ExtensionTabStatusPayload | null;
+      this.lastTabStatus = body;
+      this.tabStatusCount += 1;
+      console.log('[ExtensionTransport] Tab status from extension:', body);
       sendJson(res, 200, { status: 'ok' });
       return;
     }
