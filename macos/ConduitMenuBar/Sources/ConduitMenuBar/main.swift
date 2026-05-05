@@ -15,9 +15,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var daemon = ManagedProcess(label: "Clipboard daemon", logName: "clipboard-daemon.log") { [weak self] in
         self?.refreshMenu()
     }
+    private lazy var agentListener = ManagedProcess(label: "Agent listener", logName: "agent-listener.log") { [weak self] in
+        self?.refreshMenu()
+    }
     private let updater = UpdateChecker()
     private var statusMenuItem = NSMenuItem(title: "Status: Starting", action: nil, keyEquivalent: "")
     private var controlToggleItem = NSMenuItem()
+    private var agentListenerToggleItem = NSMenuItem()
     private var daemonToggleItem = NSMenuItem()
     private var controlAppExternalAvailable = false
     private var controlAppSupportsAgentHandshake = false
@@ -27,15 +31,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureStatusItem()
         rebuildMenu()
-        refreshControlAppHealth { [weak self] available in
-            guard let self else {
-                return
-            }
-            if !available {
-                self.startControlApp()
-            }
-            self.startDaemon()
+        if (try? PortListeners.listenerPids(on: 47831).isEmpty) == true {
+            startControlApp()
+        } else {
+            refreshControlAppHealth()
         }
+        startAgentListener()
+        startDaemon()
         healthTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             self?.refreshControlAppHealth()
         }
@@ -51,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         healthTimer?.invalidate()
         controlApp.stop()
+        agentListener.stop()
         daemon.stop()
     }
 
@@ -86,6 +89,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         handshakeItem.target = self
         menu.addItem(handshakeItem)
 
+        agentListenerToggleItem = NSMenuItem(
+            title: agentListener.isRunning ? "Stop Agent Listener" : "Start Agent Listener",
+            action: #selector(toggleAgentListener),
+            keyEquivalent: ""
+        )
+        agentListenerToggleItem.target = self
+        menu.addItem(agentListenerToggleItem)
+
         daemonToggleItem = NSMenuItem(
             title: daemon.isRunning ? "Stop Clipboard Daemon" : "Start Clipboard Daemon",
             action: #selector(toggleDaemon),
@@ -115,14 +126,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func statusTitle() -> String {
         let control = "control \(controlAppStatusSummary())"
+        let agentState = "agent \(agentListener.statusSummary)"
         let daemonState = "daemon \(daemon.statusSummary)"
-        return "Status: \(control), \(daemonState)"
+        return "Status: \(control), \(agentState), \(daemonState)"
     }
 
     private func refreshMenu() {
         statusMenuItem.title = statusTitle()
         controlToggleItem.title = controlAppToggleTitle()
         controlToggleItem.isEnabled = controlAppToggleEnabled()
+        agentListenerToggleItem.title = agentListener.isRunning ? "Stop Agent Listener" : "Start Agent Listener"
         daemonToggleItem.title = daemon.isRunning ? "Stop Clipboard Daemon" : "Start Clipboard Daemon"
     }
 
@@ -200,6 +213,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !controlApp.isRunning && !controlAppExternalAvailable {
             startControlApp()
         }
+        if !agentListener.isRunning {
+            startAgentListener()
+        }
         if controlAppExternalAvailable && !controlAppSupportsAgentHandshake {
             restartStaleControlApp { [weak self] restarted in
                 guard restarted else {
@@ -232,6 +248,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             daemon.stop()
         } else {
             startDaemon()
+        }
+        refreshMenu()
+    }
+
+    @objc private func toggleAgentListener() {
+        if agentListener.isRunning {
+            agentListener.stop()
+        } else {
+            startAgentListener()
         }
         refreshMenu()
     }
@@ -287,7 +312,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 ProcessTree.terminateTree(of: pid)
             }
             refreshMenu()
-            waitForControlPortToClear {
+            waitForPortToClear(47831) {
                 self.controlAppExternalAvailable = false
                 self.controlAppSupportsAgentHandshake = false
                 self.startControlApp()
@@ -299,10 +324,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func waitForControlPortToClear(completion: @escaping () -> Void) {
+    private func waitForPortToClear(_ port: Int, completion: @escaping () -> Void) {
         DispatchQueue.global(qos: .utility).async {
             for _ in 0..<30 {
-                if (try? PortListeners.listenerPids(on: 47831).isEmpty) == true {
+                if (try? PortListeners.listenerPids(on: port).isEmpty) == true {
                     break
                 }
                 Thread.sleep(forTimeInterval: 0.1)
@@ -340,6 +365,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshMenu()
     }
 
+    private func startAgentListener() {
+        do {
+            let pids = try PortListeners.listenerPids(on: 3333)
+            let unexpectedPids = pids.filter { !PortListeners.isConduitAgentListener(pid: $0, repoRoot: RepoLocator.repoRoot()) }
+            if !unexpectedPids.isEmpty {
+                throw AppError("Port 3333 is in use by a non-Conduit process: \(unexpectedPids.map { String($0) }.joined(separator: ", ")).")
+            }
+            for pid in pids {
+                ProcessTree.terminateTree(of: pid)
+            }
+            waitForPortToClear(3333) {
+                do {
+                    try self.agentListener.start(arguments: ["run", "conduit", "--", "listen", "--project", RepoLocator.repoRoot()])
+                } catch {
+                    self.presentError("Could not start the agent listener.", error)
+                }
+                self.refreshMenu()
+            }
+        } catch {
+            presentError("Could not start the agent listener.", error)
+        }
+        refreshMenu()
+    }
+
     private func requestAgentHandshake() async throws -> AgentHandshakeResponse {
         guard let url = URL(string: "http://127.0.0.1:47831/api/agent-handshake") else {
             throw AppError("Invalid control app URL.")
@@ -366,7 +415,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func confirmTermination() -> Bool {
         let alert = NSAlert()
         alert.messageText = "Quit Conduit?"
-        alert.informativeText = "Quitting stops the clipboard daemon and any control app process started by Conduit. Choose Keep Running if you want Conduit to stay in the menu bar supervising local execution."
+        alert.informativeText = "Quitting stops the control app, agent listener, and clipboard daemon processes started by Conduit. Choose Keep Running if you want Conduit to stay in the menu bar supervising local execution."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Quit and Stop Services")
         alert.addButton(withTitle: "Keep Running")
@@ -565,6 +614,13 @@ enum PortListeners {
         return command.contains("src/cli/index.ts app start")
             || command.contains("dist/cli/index.js app start")
             || (command.contains(repoRoot) && command.contains("app start --port 47831"))
+    }
+
+    static func isConduitAgentListener(pid: Int32, repoRoot: String) -> Bool {
+        let command = commandLine(for: pid)
+        return command.contains("src/cli/index.ts listen")
+            || command.contains("dist/cli/index.js listen")
+            || (command.contains(repoRoot) && command.contains("listen --project"))
     }
 
     private static func commandLine(for pid: Int32) -> String {

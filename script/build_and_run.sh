@@ -16,6 +16,12 @@ MODE="${1:-}"
 stop_existing() {
   /usr/bin/pkill -x "$APP_NAME" >/dev/null 2>&1 || true
   /usr/bin/pkill -x "$PRODUCT" >/dev/null 2>&1 || true
+  /usr/bin/pkill -TERM -f "$ROOT.*src/cli/index.ts app start --port 47831" >/dev/null 2>&1 || true
+  /usr/bin/pkill -TERM -f "$ROOT.*src/cli/index.ts daemon start" >/dev/null 2>&1 || true
+  /usr/bin/pkill -TERM -f "$ROOT.*src/cli/index.ts listen --project" >/dev/null 2>&1 || true
+  /usr/bin/pkill -TERM -f "$ROOT.*dist/cli/index.js app start --port 47831" >/dev/null 2>&1 || true
+  /usr/bin/pkill -TERM -f "$ROOT.*dist/cli/index.js daemon start" >/dev/null 2>&1 || true
+  /usr/bin/pkill -TERM -f "$ROOT.*dist/cli/index.js listen --project" >/dev/null 2>&1 || true
 }
 
 stage_bundle() {

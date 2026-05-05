@@ -432,10 +432,12 @@ Behavior:
 - stages `dist/macos/Conduit.app`
 - starts/stops `npm run conduit -- app start --port 47831`
 - opens `http://127.0.0.1:47831`
+- starts/stops `npm run conduit -- listen --project <repo root>` for the browser extension agent loop
 - starts/stops `npm run conduit -- daemon start --interval-ms 1000`
-- starts both supervised services by default when the menu-bar app launches
+- starts supervised services by default when the menu-bar app launches
 - asks for confirmation before quitting and stopping supervised services
 - passes a parent PID deadman switch to supervised services, so they exit if the menu-bar app disappears
+- sweeps legacy service processes from the same checkout when using the local build/run script
 - checks a local update manifest by default
 - allows `CONDUIT_UPDATE_MANIFEST_URL` to point at a future hosted manifest
 - copies a fresh agent-loop handshake into the clipboard for real ChatGPT tab testing

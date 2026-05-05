@@ -917,9 +917,11 @@ Enable Idiot Mode...
 Quit
 ```
 
-The menu-bar app SHOULD supervise the daemon and control surface, but MUST NOT become the execution engine. Execution remains in the daemon/runtime layer.
+The menu-bar app SHOULD supervise the daemon, browser-extension agent listener, and control surface, but MUST NOT become the execution engine. Execution remains in the daemon/runtime layer.
 
-Supervised child services MUST have a deadman switch. If the menu-bar/tray parent process that launched them can no longer be observed, the control surface and daemon MUST stop themselves rather than continue executing in the background. A confirmed app quit MUST also terminate the supervised process tree.
+Supervised child services MUST have a deadman switch. If the menu-bar/tray parent process that launched them can no longer be observed, the control surface, agent listener, and daemon MUST stop themselves rather than continue executing in the background. A confirmed app quit MUST also terminate the supervised process tree.
+
+Development build/run tooling SHOULD terminate stale Conduit service processes from the same installation or source checkout before launching a replacement preview app.
 
 ### 15.4 App Updates
 

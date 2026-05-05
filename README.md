@@ -187,7 +187,7 @@ npm run macos:build
 open dist/macos/Conduit.app
 ```
 
-The menu-bar app starts the local control app and clipboard daemon by default, opens the control panel, stops supervised services on confirmed quit, and checks a local update manifest at `website/releases/conduit-appcast.json` unless `CONDUIT_UPDATE_MANIFEST_URL` is set. Supervised services also watch the menu-bar parent process and exit if it disappears.
+The menu-bar app starts the local control app, agent listener, and clipboard daemon by default, opens the control panel, stops supervised services on confirmed quit, and checks a local update manifest at `website/releases/conduit-appcast.json` unless `CONDUIT_UPDATE_MANIFEST_URL` is set. Supervised services also watch the menu-bar parent process and exit if it disappears. The local build/run script also terminates legacy Conduit service processes from the same repo checkout that predate parent supervision.
 
 Agent-loop handshake:
 
@@ -195,7 +195,7 @@ Agent-loop handshake:
 Open Conduit menu bar app -> Copy Agent Handshake
 ```
 
-Paste the copied handshake into a real ChatGPT tab to introduce Conduit, create a paired `extension` session, and give the model the initial `sessionId` and `nonce` for elevated agent-loop requests.
+Paste the copied handshake into a real ChatGPT tab to introduce Conduit, create a paired `extension` session, and give the model the initial `sessionId` and `nonce` for elevated agent-loop requests. The menu-bar agent listener keeps the browser extension bridge open on `127.0.0.1:3333` so detected action blocks can round-trip results back into the chat.
 
 Auth/browser troubleshooting has its own plan in [docs/auth-troubleshooting.md](docs/auth-troubleshooting.md).
 The principled browser-extension transport plan is in [docs/extension-transport-plan.md](docs/extension-transport-plan.md).

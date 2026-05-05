@@ -12,7 +12,9 @@ describe('macOS menu-bar package scaffold', () => {
     const main = await readText('macos/ConduitMenuBar/Sources/ConduitMenuBar/main.swift');
     expect(main).toContain('NSStatusBar.system.statusItem');
     expect(main).toContain('Start Clipboard Daemon');
+    expect(main).toContain('Start Agent Listener');
     expect(main).toContain('startDaemon()');
+    expect(main).toContain('startAgentListener()');
     expect(main).toContain('startControlApp()');
     expect(main).toContain('applicationShouldTerminate');
     expect(main).toContain('Copy Agent Handshake');
@@ -30,7 +32,11 @@ describe('macOS menu-bar package scaffold', () => {
     expect(main).toContain('agentHandshake');
     expect(main).toContain('restartStaleControlApp');
     expect(main).toContain('listenerPids(on: 47831)');
+    expect(main).toContain('listenerPids(on: 3333)');
     expect(main).toContain('isConduitControlListener');
+    expect(main).toContain('isConduitAgentListener');
+    expect(main).toContain('agent-listener.log');
+    expect(main).toContain('"listen", "--project"');
     expect(main).toContain('standardOutput = handle');
     expect(main).toContain('standardError = handle');
     expect(main).toContain('/bin/zsh');
@@ -44,6 +50,8 @@ describe('macOS menu-bar package scaffold', () => {
     const script = await readText('script/build_and_run.sh');
     expect(script).toContain('SWIFT_BUILD_DIR="${CONDUIT_SWIFT_BUILD_DIR:-${TMPDIR:-/tmp}/conduit-menubar-build}"');
     expect(script).toContain('swift build --package-path "$PACKAGE_DIR" --scratch-path "$SWIFT_BUILD_DIR"');
+    expect(script).toContain('src/cli/index.ts daemon start');
+    expect(script).toContain('src/cli/index.ts listen --project');
     expect(script).toContain('LSUIElement');
     expect(script).toContain('CONDUIT_REPO_ROOT="$ROOT" /usr/bin/open -n "$APP_BUNDLE"');
   });
