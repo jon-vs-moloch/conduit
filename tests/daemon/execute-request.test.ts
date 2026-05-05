@@ -33,7 +33,7 @@ describe('executeRequestFromText', () => {
   });
 
   it('rejects requests without a trusted session and nonce', async () => {
-    await expect(executeRequestFromText({
+    const output = await executeRequestFromText({
       text: conduitBlock({
         schema: 'conduit.request.v1',
         source: { kind: 'clipboard', trust: 'untrusted' },
@@ -42,10 +42,33 @@ describe('executeRequestFromText', () => {
           { id: 'read', tool: 'file.read', args: { path: 'README.md' } }
         ]
       })
-    })).resolves.toEqual({
+    });
+
+    expect(output).toMatchObject({
       status: 'rejected',
       reason: 'Trusted execution requires sessionId and nonce.'
     });
+    expect(output.rendered).toContain('<<<CONDUIT_REPAIR_JSON');
+    expect(output.rendered).toContain('"code": "missing_session"');
+    expect(output.rendered).toContain('"schema": "conduit.request.v1"');
+  });
+
+  it('returns structured repair output for malformed exact envelopes', async () => {
+    const output = await executeRequestFromText({
+      text: [
+        '```conduit',
+        '{ "schema": "conduit.request.v1", "permissions": [],',
+        '```'
+      ].join('\n')
+    });
+
+    expect(output.status).toBe('rejected');
+    expect(output.reason).toContain('Expected double-quoted property name');
+    expect(output.rendered).toContain('Conduit request repair:');
+    expect(output.rendered).toContain('<<<CONDUIT_REPAIR_JSON');
+    expect(output.rendered).toContain('"type": "conduit.repair.v1"');
+    expect(output.rendered).toContain('"code": "malformed_json"');
+    expect(output.rendered).toContain('Copy only the repaired Conduit envelope');
   });
 
   it('executes a trusted request, rotates the nonce, and writes Conduit results', async () => {
@@ -106,11 +129,15 @@ describe('executeRequestFromText', () => {
     await expect(executeRequestFromText({ text })).resolves.toMatchObject({
       status: 'executed'
     });
-    await expect(executeRequestFromText({ text })).resolves.toEqual({
+    const replay = await executeRequestFromText({ text });
+    expect(replay).toMatchObject({
       status: 'rejected',
       sessionId: session.sessionId,
       reason: 'Nonce was already used.'
     });
+    expect(replay.rendered).toContain('<<<CONDUIT_REPAIR_JSON');
+    expect(replay.rendered).toContain('"code": "invalid_session"');
+    expect(replay.rendered).toContain(session.sessionId);
   });
 
   it('consumes the nonce even when policy denies the action', async () => {

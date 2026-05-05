@@ -1,4 +1,11 @@
-import { CONDUIT_RESULTS_END, CONDUIT_RESULTS_START, TOOL_RESULTS_END, TOOL_RESULTS_START } from './delimiters.js';
+import {
+  CONDUIT_REPAIR_END,
+  CONDUIT_REPAIR_START,
+  CONDUIT_RESULTS_END,
+  CONDUIT_RESULTS_START,
+  TOOL_RESULTS_END,
+  TOOL_RESULTS_START
+} from './delimiters.js';
 import type { ToolResult } from './schemas.js';
 
 const DEFAULT_MAX_RENDERED_CHARS = 30_000;
@@ -34,6 +41,41 @@ export function renderConduitResults(envelope: ConduitResultEnvelope): string {
     CONDUIT_RESULTS_START,
     JSON.stringify(envelope, null, 2),
     CONDUIT_RESULTS_END
+  ].join('\n');
+}
+
+export interface ConduitRepairEnvelope {
+  type: 'conduit.repair.v1';
+  status: 'rejected';
+  reason: string;
+  code:
+    | 'malformed_json'
+    | 'multiple_envelopes'
+    | 'missing_session'
+    | 'invalid_session'
+    | 'invalid_schema'
+    | 'invalid_permissions'
+    | 'request_rejected';
+  sessionId?: string;
+  expected: {
+    exactEnvelope: true;
+    schema: 'conduit.request.v1';
+    requiredFields: string[];
+    allowedClipboardForms: string[];
+  };
+  repairInstructions: string[];
+  example: Record<string, unknown>;
+}
+
+export function renderConduitRepair(envelope: ConduitRepairEnvelope): string {
+  return [
+    'Conduit request repair:',
+    '',
+    CONDUIT_REPAIR_START,
+    JSON.stringify(envelope, null, 2),
+    CONDUIT_REPAIR_END,
+    '',
+    'Fix the request and copy only one exact Conduit envelope. Do not wrap it in prose.'
   ].join('\n');
 }
 

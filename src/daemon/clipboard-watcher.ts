@@ -51,7 +51,7 @@ export class ClipboardWatcher {
       }
 
       if (output.status === 'rejected') {
-        const rendered = renderRejectedRequest(output.reason ?? 'Request rejected.', output.sessionId);
+        const rendered = output.rendered ?? renderRejectedRequest(output.reason ?? 'Request rejected.', output.sessionId);
         await this.options.clipboard.write(rendered);
         this.lastSeenHash = hashText(rendered);
         this.emit({

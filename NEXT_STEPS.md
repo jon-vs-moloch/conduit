@@ -122,6 +122,10 @@ Current state:
   - control app toolbar button
   - menu-bar `Copy Agent Handshake` action
   - creates an `extension` session and copies a self-contained protocol intro for a real chat tab
+- Structured repair output is implemented:
+  - rejected exact envelopes return `CONDUIT_REPAIR_JSON`
+  - malformed JSON, multiple envelopes, missing session/nonce, and invalid session failures include repair instructions and an example request
+  - clipboard watcher writes repair output back instead of plain rejection text when available
 
 Verification commands:
 

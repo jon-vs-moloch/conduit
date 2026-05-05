@@ -943,7 +943,47 @@ Compliance mode should work without the extension.
 
 ---
 
-## 17. Logging
+## 17. Repair Output
+
+When Conduit rejects an executable-looking request envelope, it SHOULD emit a structured repair block.
+
+Repair output is intended for chat agents and users. It should explain what failed without executing anything.
+
+Format:
+
+```txt
+<<<CONDUIT_REPAIR_JSON
+{
+  "type": "conduit.repair.v1",
+  "status": "rejected",
+  "reason": "...",
+  "code": "malformed_json",
+  "expected": {
+    "exactEnvelope": true,
+    "schema": "conduit.request.v1"
+  },
+  "repairInstructions": [],
+  "example": {}
+}
+CONDUIT_REPAIR_JSON>>>
+```
+
+Repair output SHOULD be used for:
+
+- malformed JSON
+- duplicate JSON keys
+- multiple envelopes
+- missing `schema`
+- missing source metadata
+- missing permissions
+- missing session id or nonce
+- invalid, expired, revoked, or replayed sessions
+
+Repair output MUST NOT be treated as executable. It is feedback only.
+
+---
+
+## 18. Logging
 
 Conduit should log:
 

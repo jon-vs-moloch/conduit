@@ -72,8 +72,25 @@ describe('ClipboardWatcher', () => {
     const result = await watcher.checkOnce();
 
     expect(result.status).toBe('rejected');
-    expect(clipboard.text).toContain('Conduit request rejected.');
+    expect(clipboard.text).toContain('Conduit request repair:');
     expect(clipboard.text).toContain('Trusted execution requires sessionId and nonce.');
+    expect(clipboard.text).toContain('CONDUIT_REPAIR_JSON');
+  });
+
+  it('writes structured repair output when exact request envelope is malformed', async () => {
+    const clipboard = new FakeClipboard([
+      '```conduit',
+      '{ "schema": "conduit.request.v1", "permissions": [],',
+      '```'
+    ].join('\n'));
+
+    const watcher = new ClipboardWatcher({ clipboard });
+    const result = await watcher.checkOnce();
+
+    expect(result.status).toBe('rejected');
+    expect(clipboard.text).toContain('Conduit request repair:');
+    expect(clipboard.text).toContain('CONDUIT_REPAIR_JSON');
+    expect(clipboard.text).toContain('"code": "malformed_json"');
   });
 
   it('ignores ordinary clipboard text without writing back', async () => {

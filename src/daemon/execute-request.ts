@@ -1,7 +1,7 @@
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { parseClipboardEnvelope } from '../protocol/parse-clipboard-envelope.js';
-import { renderConduitResults } from '../protocol/render-results.js';
+import { renderConduitRepair, renderConduitResults, type ConduitRepairEnvelope } from '../protocol/render-results.js';
 import type { ActionRequestBlock, ToolResult } from '../protocol/schemas.js';
 import { consumeSessionNonce, validateSessionNonce } from '../sessions/session-store.js';
 import { getRunDir } from '../state/paths.js';
@@ -26,6 +26,7 @@ export interface ExecuteRequestOutput {
   results?: ToolResult[];
   rendered?: string;
   reason?: string;
+  repair?: ConduitRepairEnvelope;
 }
 
 export async function executeRequestFromText(input: ExecuteRequestInput): Promise<ExecuteRequestOutput> {
@@ -34,9 +35,15 @@ export async function executeRequestFromText(input: ExecuteRequestInput): Promis
     if (parseResult.kind === 'none') {
       return { status: 'ignored', reason: 'No Conduit request found.' };
     }
+    const repair = createRepairEnvelope({
+      reason: parseResult.error ?? `Request parse failed: ${parseResult.kind}.`,
+      code: parseResult.kind === 'multiple' ? 'multiple_envelopes' : classifyRepairCode(parseResult.error),
+    });
     return {
       status: 'rejected',
-      reason: parseResult.error ?? `Request parse failed: ${parseResult.kind}.`
+      reason: repair.reason,
+      repair,
+      rendered: renderConduitRepair(repair)
     };
   }
 
@@ -51,18 +58,33 @@ export async function executeConduitRequest(
   options: Pick<ExecuteRequestInput, 'yes' | 'confirm'> = {}
 ): Promise<ExecuteRequestOutput> {
   if (!request.sessionId || !request.nonce) {
+    const repair = createRepairEnvelope({
+      reason: 'Trusted execution requires sessionId and nonce.',
+      code: 'missing_session',
+      request
+    });
     return {
       status: 'rejected',
-      reason: 'Trusted execution requires sessionId and nonce.'
+      reason: repair.reason,
+      repair,
+      rendered: renderConduitRepair(repair)
     };
   }
 
   const validation = await validateSessionNonce(request.sessionId, request.nonce);
   if (!validation.ok) {
+    const repair = createRepairEnvelope({
+      reason: validation.reason,
+      code: 'invalid_session',
+      request,
+      sessionId: request.sessionId
+    });
     return {
       status: 'rejected',
       sessionId: request.sessionId,
-      reason: validation.reason
+      reason: repair.reason,
+      repair,
+      rendered: renderConduitRepair(repair)
     };
   }
 
@@ -111,6 +133,80 @@ export async function executeConduitRequest(
     nextNonce: consumedSession.currentNonce,
     results,
     rendered
+  };
+}
+
+function classifyRepairCode(error: string | undefined): ConduitRepairEnvelope['code'] {
+  const text = error ?? '';
+  if (text.includes('JSON') || text.includes('Unexpected') || text.includes('Duplicate JSON object key')) {
+    return 'malformed_json';
+  }
+  if (text.includes('schema')) {
+    return 'invalid_schema';
+  }
+  if (text.includes('permissions')) {
+    return 'invalid_permissions';
+  }
+  return 'request_rejected';
+}
+
+function createRepairEnvelope(input: {
+  reason: string;
+  code: ConduitRepairEnvelope['code'];
+  request?: Partial<ActionRequestBlock>;
+  sessionId?: string;
+}): ConduitRepairEnvelope {
+  const sessionId = input.sessionId ?? input.request?.sessionId ?? 'sess_...';
+  const nonce = input.request?.nonce ?? 'call_...';
+  return {
+    type: 'conduit.repair.v1',
+    status: 'rejected',
+    reason: input.reason,
+    code: input.code,
+    ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+    expected: {
+      exactEnvelope: true,
+      schema: 'conduit.request.v1',
+      requiredFields: ['schema', 'source', 'permissions', 'sessionId', 'nonce', 'actions'],
+      allowedClipboardForms: [
+        'A single fenced ```conduit code block containing strict JSON.',
+        'A single fenced ```conduit-json code block containing strict JSON.',
+        'A single raw JSON Conduit request object.'
+      ]
+    },
+    repairInstructions: [
+      'Copy only the repaired Conduit envelope, with no surrounding prose.',
+      'Use strict JSON: no comments, trailing commas, duplicate object keys, or markdown inside the JSON.',
+      'Include schema: conduit.request.v1.',
+      'Include source metadata and declared permissions, even when permissions is an empty array.',
+      'Include the current sessionId and nonce from the active Conduit session.',
+      'Give every action a stable id.'
+    ],
+    example: {
+      schema: 'conduit.request.v1',
+      source: {
+        kind: 'clipboard',
+        trust: 'untrusted'
+      },
+      permissions: [
+        {
+          kind: 'filesystem',
+          scope: 'project',
+          access: 'read'
+        }
+      ],
+      sessionId,
+      nonce,
+      actions: [
+        {
+          id: 'list_project',
+          tool: 'file.list',
+          args: { path: '.' },
+          reason: 'List the project root.',
+          risk: 'low'
+        }
+      ]
+    }
   };
 }
 
