@@ -421,7 +421,7 @@ function renderAppHtml(): string {
 </html>`;
 }
 
-function renderAppJs(): string {
+export function renderAppJs(): string {
   return `
 const state = { status: null, bridge: null, sessions: [], approvals: [], runs: [], view: 'overview' };
 const $ = (id) => document.getElementById(id);
@@ -569,9 +569,7 @@ $('checkClipboard').addEventListener('click', async () => {
 });
 
 $('retryOutbound').addEventListener('click', async () => {
-  const transportId = state.bridge?.attentionOutboundIds?.[0]
-    || state.bridge?.retryingOutboundIds?.[0]
-    || state.bridge?.pendingSendResultIds?.[0];
+  const transportId = selectRetryTransportId(state.bridge);
   await fetchBridgeRetry(transportId);
   setStatus('Queued outbound retry.');
   await refresh();
@@ -641,6 +639,12 @@ async function fetchBridgeRetry(transportId) {
 
 function bridgeCanRetry(bridge) {
   return Boolean(bridge?.attentionOutboundIds?.length || bridge?.retryingOutboundIds?.length || bridge?.pendingSendResultIds?.length);
+}
+
+function selectRetryTransportId(bridge) {
+  return bridge?.attentionOutboundIds?.[0]
+    || bridge?.retryingOutboundIds?.[0]
+    || bridge?.pendingSendResultIds?.[0];
 }
 
 refresh().catch((error) => setStatus(error.message));

@@ -17,9 +17,7 @@ let latestHealth = null;
 
 elements.refreshButton.addEventListener('click', () => refresh());
 elements.retryButton.addEventListener('click', async () => {
-  const transportId = latestHealth?.attentionOutboundIds?.[0]
-    || latestHealth?.retryingOutboundIds?.[0]
-    || latestHealth?.pendingSendResultIds?.[0];
+  const transportId = selectRetryTransportId(latestHealth);
   await postJson('/api/conduit-retry', transportId ? { transportId } : {});
   await refresh();
 });
@@ -75,6 +73,12 @@ function outboundSummary(health) {
   if (health.pendingSendResults > 0) return `${health.pendingSendResults} sending`;
   if (health.outboundQueued > 0) return `${health.outboundQueued} queued`;
   return 'idle';
+}
+
+function selectRetryTransportId(health) {
+  return health?.attentionOutboundIds?.[0]
+    || health?.retryingOutboundIds?.[0]
+    || health?.pendingSendResultIds?.[0];
 }
 
 function setBadge(text, className) {
