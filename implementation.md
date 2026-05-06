@@ -271,6 +271,8 @@ This keeps the model-facing form small while preserving the canonical executor
 contract:
 
 ````json
+{ "do": "help" }
+{ "do": ".help", "topic": "examples" }
 { "read": "README.md" }
 { "list": "." }
 { "diff": "src/index.ts" }
@@ -289,6 +291,12 @@ For multiple actions, `actions` may contain compact objects:
     { "id": "read_readme", "read": "README.md" }
   ]
 }
+````
+
+For simple multi-action requests, `do` may be an array:
+
+````json
+{ "do": ["list .", "read README.md", "status"] }
 ````
 
 All compact forms normalize to `actions: [{ id, tool, args, reason?, risk? }]`

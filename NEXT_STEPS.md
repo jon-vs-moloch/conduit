@@ -45,6 +45,9 @@ Current state:
   - `n` -> `nonce`
   - `v: "1"` -> `schema: "conduit.request.v1"`
   - `do` / `op` select the action alias
+  - `why` -> action `reason`
+  - `do: ["list .", "read README.md", "status"]` normalizes into multi-action requests
+  - `do: "help"` / `do: ".help"` and `do: "about"` expose progressive protocol help
   - string actions such as `"read README.md"` normalize into canonical actions
 - Protocol prompts now use an ASCII Conduit protocol card so handshakes and
   harness prompts look like control messages rather than user-authored prose.

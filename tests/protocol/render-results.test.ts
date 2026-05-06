@@ -51,6 +51,7 @@ describe('renderConduitRepair', () => {
 
     expect(rendered).toContain('<<<CONDUIT_REPAIR_JSON');
     expect(rendered).toContain('"type": "conduit.repair.v1"');
+    expect(rendered).toContain('request `.help` or use `do: "help"`');
 
     const json = rendered.match(/<<<CONDUIT_REPAIR_JSON\n([\s\S]+)\nCONDUIT_REPAIR_JSON>>>/)?.[1];
     expect(json).toBeTruthy();

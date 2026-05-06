@@ -23,9 +23,9 @@ export function renderAgentHandshake(input: RenderAgentHandshakeInput): string {
     requestContract: {
       requestFence: 'conduit',
       resultFence: 'CONDUIT_RESULTS_JSON',
-      includeFields: ['schema', 'source', 'permissions', 'sessionId', 'nonce', 'actions'],
+      minimalFields: ['v', 'session', 'n', 'do'],
       schema: 'conduit.request.v1',
-      compactActionShortcuts: ['read', 'list', 'diff', 'status', 'write', 'patch', 'shell']
+      compactActionShortcuts: ['help', 'about', 'read', 'list', 'diff', 'status', 'write', 'patch', 'shell']
     }
   };
 
@@ -43,18 +43,17 @@ export function renderAgentHandshake(input: RenderAgentHandshakeInput): string {
     '',
     'You are talking to a user who has Conduit running locally. Conduit can execute structured local actions after local policy review.',
     '',
-    `Read the Conduit docs if available: ${docsUrl}`,
+    `Docs, if needed: ${docsUrl}`,
     '',
     'Important rules:',
     '',
     '- Do not ask the user to paste shell commands when a Conduit action can express the same work.',
     '- Emit Conduit requests only as a single fenced `conduit` code block.',
-    '- Include the provided `sessionId` and `nonce` in each request until Conduit returns a rotated `nextNonce`.',
-    '- After every successful Conduit result, use the returned `nextNonce` for the next request.',
-    '- Prefer compact shortcuts for simple work: `read`, `list`, `diff`, `status`, `write`, `patch`, or `shell`.',
-    '- Use stable action IDs when emitting an `actions` array with more than one action.',
-    '- Request the narrowest permissions and tools that satisfy the task.',
-    '- Treat write, patch, shell, install, and update actions as high-risk and explain why they are needed.',
+    '- Use the compact request dialect first: `v`, `session`, `n`, `do`, `path`, and `why`.',
+    '- Use the returned `nextNonce` as `n` on the next request.',
+    '- Ask `do: "help"` or `do: "about"` if you need protocol details.',
+    '- Use `do: ["list .", "read README.md", "status"]` for simple multi-action requests.',
+    '- Treat write, patch, shell, install, and update actions as high-risk and explain why in `why`.',
     '- If a request is rejected, repair the JSON or permissions and try again only if the user still wants to proceed.',
     '- You may explain what you are doing in normal prose before or after the request.',
     '- When requesting execution, include exactly one clearly separated fenced `conduit` block in that turn.',
@@ -65,27 +64,16 @@ export function renderAgentHandshake(input: RenderAgentHandshakeInput): string {
     JSON.stringify(handshake, null, 2),
     '```',
     '',
-    'Example read-only request shape:',
+    'Minimal request:',
     '',
     '```conduit',
     JSON.stringify({
-      schema: 'conduit.request.v1',
-      source: {
-        kind: 'chat',
-        trust: 'paired-session'
-      },
-      permissions: [
-        {
-          kind: 'filesystem',
-          scope: 'project',
-          access: 'read'
-        }
-      ],
-      sessionId: session.sessionId,
-      nonce: session.currentNonce,
-      list: '.',
-      reason: 'Inspect the project root.',
-      risk: 'low'
+      v: '1',
+      session: session.sessionId,
+      n: session.currentNonce,
+      do: 'list',
+      path: '.',
+      why: 'Orient before making changes.'
     }, null, 2),
     '```'
   ].join('\n');

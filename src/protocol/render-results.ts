@@ -76,7 +76,8 @@ export function renderConduitRepair(envelope: ConduitRepairEnvelope): string {
     JSON.stringify(envelope, null, 2),
     CONDUIT_REPAIR_END,
     '',
-    'Fix the request and copy only one exact Conduit envelope. Do not wrap it in prose.'
+    'Fix the request and copy only one exact Conduit envelope. Do not wrap the copied envelope in prose.',
+    'For protocol examples, request `.help` or use `do: "help"` in an authenticated agent session.'
   ].join('\n');
 }
 
@@ -97,7 +98,8 @@ export function renderProtocolError(message: string): string {
     'PROTOCOL ERROR:',
     message,
     '',
-    'Please fix this error and emit exactly one valid conduit request block or one conduit-final block.'
+    'Please fix this error and emit exactly one valid conduit request block or one conduit-final block.',
+    'Use `.help` or `do: "help"` for compact Conduit examples if you need them.'
   ].join('\n');
 }
 

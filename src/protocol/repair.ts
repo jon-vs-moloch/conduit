@@ -34,7 +34,7 @@ export function createRepairEnvelope(input: {
     expected: {
       exactEnvelope: true,
       schema: 'conduit.request.v1',
-      requiredFields: ['schema', 'source', 'permissions', 'sessionId', 'nonce', 'actions or one compact action shortcut'],
+      requiredFields: ['schema or v: "1"', 'source', 'permissions', 'sessionId/session', 'nonce/n', 'actions or one compact action shortcut'],
       allowedClipboardForms: [
         'A single fenced ```conduit code block containing strict JSON.',
         'A single fenced ```conduit-json code block containing strict JSON.',
@@ -47,11 +47,12 @@ export function createRepairEnvelope(input: {
       'Include schema: conduit.request.v1.',
       'Include source metadata and declared permissions, even when permissions is an empty array.',
       'Include the current sessionId and currentNonce from this repair envelope when present.',
-      'For simple reads/lists, prefer compact shortcuts like read: "README.md" or list: ".".',
-      'For multi-action requests, use an actions array and give every action a stable id.'
+      'For simple requests, prefer the compact dialect: v, session, n, do, path, and why.',
+      'Use do: "help" or do: ".help" for protocol examples if you need more detail.',
+      'For multi-action requests, use do: ["list .", "read README.md", "status"] or a canonical actions array.'
     ],
     example: {
-      schema: 'conduit.request.v1',
+      v: '1',
       source: {
         kind: 'clipboard',
         trust: 'untrusted'
@@ -63,10 +64,11 @@ export function createRepairEnvelope(input: {
           access: 'read'
         }
       ],
-      sessionId,
-      nonce,
-      list: '.',
-      reason: 'List the project root.',
+      session: sessionId,
+      n: nonce,
+      do: 'list',
+      path: '.',
+      why: 'List the project root.',
       risk: 'low'
     }
   };

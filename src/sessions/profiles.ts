@@ -10,19 +10,19 @@ export interface PermissionProfile {
 export const PROFILES: Record<PermissionProfileName, PermissionProfile> = {
   'read-only': {
     name: 'read-only',
-    autoAllow: ['file.read', 'file.list', 'git.status', 'git.diff'],
+    autoAllow: ['file.read', 'file.list', 'git.status', 'git.diff', 'conduit.about', 'conduit.help'],
     requireConfirmation: [],
     deny: ['file.patch', 'file.write', 'shell.run']
   },
   'edit-with-confirmation': {
     name: 'edit-with-confirmation',
-    autoAllow: ['file.read', 'file.list', 'git.status', 'git.diff'],
+    autoAllow: ['file.read', 'file.list', 'git.status', 'git.diff', 'conduit.about', 'conduit.help'],
     requireConfirmation: ['file.patch', 'file.write'],
     deny: ['shell.run']
   },
   'shell-manual': {
     name: 'shell-manual',
-    autoAllow: ['file.read', 'file.list', 'git.status', 'git.diff'],
+    autoAllow: ['file.read', 'file.list', 'git.status', 'git.diff', 'conduit.about', 'conduit.help'],
     requireConfirmation: ['file.patch', 'file.write', 'shell.run'],
     deny: []
   }

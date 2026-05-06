@@ -649,6 +649,9 @@ requirements still apply.
 Single-action examples:
 
 ```json
+{ "do": "help" }
+{ "do": ".help", "topic": "examples" }
+{ "do": "about" }
 { "read": "README.md" }
 { "list": "." }
 { "diff": "src/index.ts" }
@@ -663,17 +666,26 @@ These normalize to:
 ```ts
 {
   id: string
-  tool: 'file.read' | 'file.list' | 'git.diff' | 'git.status' | 'file.write' | 'file.patch' | 'shell.run'
+  tool: 'conduit.help' | 'conduit.about' | 'file.read' | 'file.list' | 'git.diff' | 'git.status' | 'file.write' | 'file.patch' | 'shell.run'
   args: Record<string, unknown>
   reason?: string
   risk?: 'low' | 'medium' | 'high'
 }
 ```
 
-For multi-action requests, the `actions` array MAY contain compact action
-objects. Implementations SHOULD generate deterministic action IDs when a compact
-action omits `id`; explicit stable IDs remain preferred for multi-action agent
-requests.
+For multi-action requests, `do` MAY be an array of simple string actions:
+
+```json
+{ "do": ["list .", "read README.md", "status"] }
+```
+
+The `actions` array MAY also contain compact action objects. Implementations
+SHOULD generate deterministic action IDs when a compact action omits `id`;
+explicit stable IDs remain preferred for precise multi-action agent requests.
+
+Conduit SHOULD expose low-risk protocol helper tools such as `conduit.help` and
+`conduit.about` so initial handshakes can stay short. Rejection and repair
+messages SHOULD mention the helper path, for example: use `.help` for examples.
 
 ### 10.5 Result Mode
 

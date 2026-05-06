@@ -13,7 +13,12 @@ const ACTION_FIELDS = new Set([
   'write',
   'patch',
   'shell',
+  'help',
+  'about',
+  '.help',
+  '.about',
   'path',
+  'topic',
   'paths',
   'glob',
   'command',
@@ -28,7 +33,8 @@ const ACTION_FIELDS = new Set([
   'args',
   'id',
   'reason',
-  'risk'
+  'risk',
+  'why'
 ]);
 
 const TOOL_ALIASES: Record<string, string> = {
@@ -55,7 +61,16 @@ const TOOL_ALIASES: Record<string, string> = {
   sh: 'shell.run',
   run: 'shell.run',
   'shell.run': 'shell.run',
-  shell_run: 'shell.run'
+  shell_run: 'shell.run',
+  help: 'conduit.help',
+  '.help': 'conduit.help',
+  about: 'conduit.about',
+  '.about': 'conduit.about',
+  docs: 'conduit.help',
+  'conduit.help': 'conduit.help',
+  conduit_help: 'conduit.help',
+  'conduit.about': 'conduit.about',
+  conduit_about: 'conduit.about'
 };
 
 export function normalizeCompactRequest(value: unknown): unknown {
@@ -80,6 +95,10 @@ export function normalizeCompactRequest(value: unknown): unknown {
 function normalizeActions(value: Record<string, unknown>): unknown[] | null {
   if (Array.isArray(value.actions)) {
     return value.actions.map((action, index) => normalizeAction(action, index));
+  }
+
+  if (Array.isArray(value.do)) {
+    return value.do.map((action, index) => normalizeAction(action, index));
   }
 
   if (isCompactAction(value)) {
@@ -113,11 +132,12 @@ function normalizeAction(value: unknown, index: number): unknown {
     ...(isRecord(value.args) ? value.args : {}),
     ...argsFromCompactFields(value, tool)
   };
+  const reason = stringValue(value.reason) ?? stringValue(value.why);
   const action = {
     id: stringValue(value.id) ?? stableActionId(tool, args, index),
     tool,
     args,
-    ...(typeof value.reason === 'string' ? { reason: value.reason } : {}),
+    ...(reason ? { reason } : {}),
     ...(isRisk(value.risk) ? { risk: value.risk } : {})
   };
   return action;
@@ -160,6 +180,16 @@ function argsFromCompactFields(value: Record<string, unknown>, tool: string): Re
     });
   }
 
+  if (tool === 'conduit.help') {
+    return compactArgs(value, ['topic'], {
+      topic: value.help ?? value['.help']
+    });
+  }
+
+  if (tool === 'conduit.about') {
+    return {};
+  }
+
   return {};
 }
 
@@ -183,7 +213,7 @@ function compactArgs(
 }
 
 function firstPresentAlias(value: Record<string, unknown>): string | undefined {
-  for (const alias of ['read', 'list', 'status', 'diff', 'write', 'patch', 'shell'] as const) {
+  for (const alias of ['read', 'list', 'status', 'diff', 'write', 'patch', 'shell', 'help', 'about', '.help', '.about'] as const) {
     if (value[alias] !== undefined) {
       return alias;
     }
@@ -196,6 +226,7 @@ function isCompactAction(value: Record<string, unknown>): boolean {
     || stringValue(value.action) !== undefined
     || stringValue(value.call) !== undefined
     || stringValue(value.do) !== undefined
+    || Array.isArray(value.do)
     || stringValue(value.op) !== undefined
     || firstPresentAlias(value) !== undefined;
 }
@@ -223,6 +254,12 @@ function parseActionString(value: string): Record<string, unknown> {
   }
   if (op === 'shell' || op === 'sh' || op === 'run') {
     return { do: op, command: operand };
+  }
+  if (op === 'help' || op === '.help' || op === 'docs') {
+    return operand ? { do: op, topic: operand } : { do: op };
+  }
+  if (op === 'about' || op === '.about') {
+    return { do: op };
   }
   if (op === 'status' || op === 'git.status' || op === 'git_status') {
     return { do: op };

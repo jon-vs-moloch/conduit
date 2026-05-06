@@ -145,6 +145,8 @@ next request.
 
 For simple requests, Conduit accepts compact action shortcuts:
 
+- `help` / `.help` / `do: "help"` -> `conduit.help`
+- `about` / `.about` / `do: "about"` -> `conduit.about`
 - `read: "README.md"` -> `file.read`
 - `list: "."` -> `file.list`
 - `diff: "README.md"` -> `git.diff`
@@ -161,13 +163,31 @@ Small-model-friendly aliases are accepted too:
   "session": "sess_...",
   "n": "call_...",
   "do": "list",
-  "path": "."
+  "path": ".",
+  "why": "Orient before making changes."
 }
 ```
 
-For multiple actions, use `actions: [...]`; each item can still use the same
-shortcuts, string commands such as `"read README.md"`, or canonical tool calls.
-Conduit normalizes them into canonical tool calls before policy checks.
+For multiple simple actions, use `do: [...]`:
+
+```conduit
+{
+  "v": "1",
+  "session": "sess_...",
+  "n": "call_...",
+  "do": [
+    "list .",
+    "read README.md",
+    "status"
+  ],
+  "why": "Get oriented."
+}
+```
+
+Canonical `actions: [...]` remains supported for precise multi-action calls.
+Each item can still use compact objects, string commands such as
+`"read README.md"`, or canonical tool calls. Conduit normalizes everything into
+canonical tool calls before policy checks.
 
 Completion shape:
 

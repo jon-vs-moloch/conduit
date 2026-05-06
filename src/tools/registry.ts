@@ -5,6 +5,8 @@ import { gitDiffTool } from './git-diff.js';
 import { fileWriteTool } from './file-write.js';
 import { filePatchTool } from './file-patch.js';
 import { shellRunTool } from './shell-run.js';
+import { conduitAboutTool } from './conduit-about.js';
+import { conduitHelpTool } from './conduit-help.js';
 import type { ToolDefinition } from './types.js';
 
 const TOOLS = [
@@ -12,6 +14,8 @@ const TOOLS = [
   fileListTool,
   gitStatusTool,
   gitDiffTool,
+  conduitAboutTool,
+  conduitHelpTool,
   fileWriteTool,
   filePatchTool,
   shellRunTool

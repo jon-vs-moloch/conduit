@@ -157,6 +157,62 @@ describe('parseActions', () => {
     }
   });
 
+  it('normalizes why and top-level do array shorthand', () => {
+    const result = parseActions([
+      '```conduit',
+      JSON.stringify({
+        v: '1',
+        session: 'sess_test',
+        n: 'call_test',
+        do: [
+          'list .',
+          'read README.md',
+          'status'
+        ],
+        why: 'Get oriented.'
+      }, null, 2),
+      '```'
+    ].join('\n'));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.block.schema).toBe('conduit.request.v1');
+      expect(result.block.sessionId).toBe('sess_test');
+      expect(result.block.nonce).toBe('call_test');
+      expect(result.block.actions.map((action) => action.tool)).toEqual([
+        'file.list',
+        'file.read',
+        'git.status'
+      ]);
+      expect(result.block.actions[0]?.args).toEqual({ path: '.' });
+      expect(result.block.actions[1]?.args).toEqual({ path: 'README.md' });
+    }
+  });
+
+  it('normalizes help shortcuts for progressive disclosure', () => {
+    const result = parseActions([
+      '```conduit',
+      JSON.stringify({
+        v: '1',
+        session: 'sess_test',
+        n: 'call_test',
+        do: '.help',
+        topic: 'examples',
+        why: 'Need request examples.'
+      }, null, 2),
+      '```'
+    ].join('\n'));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.block.actions[0]).toMatchObject({
+        tool: 'conduit.help',
+        args: { topic: 'examples' },
+        reason: 'Need request examples.'
+      });
+    }
+  });
+
   it('normalizes string action shortcuts', () => {
     const result = parseActions([
       '```conduit',

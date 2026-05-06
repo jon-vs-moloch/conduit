@@ -29,6 +29,11 @@ describe('renderAgentHandshake', () => {
     expect(handshake).toContain('"sessionId": "sess_test"');
     expect(handshake).toContain('"nonce": "call_test"');
     expect(handshake).toContain('```conduit');
+    expect(handshake).toContain('"v": "1"');
+    expect(handshake).toContain('"session": "sess_test"');
+    expect(handshake).toContain('"n": "call_test"');
+    expect(handshake).toContain('"why": "Orient before making changes."');
+    expect(handshake).toContain('Ask `do: "help"` or `do: "about"`');
     expect(handshake).toContain('explain what you are doing in normal prose');
     expect(handshake).toContain('exactly one clearly separated fenced `conduit` block');
   });
