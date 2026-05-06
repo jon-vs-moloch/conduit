@@ -962,6 +962,19 @@ Copy Agent Handshake
 
 The handshake creates an `extension` session and copies a self-contained introduction for a real chat tab. It includes an ASCII Conduit protocol card, session id, nonce, allowed roots, profile, docs URL, protocol rules, and an example request. This is not compliance-mode clipboard execution; it is the start of an elevated paired agent loop. The card framing is intentional: Conduit control messages should look like protocol metadata rather than user-authored prose.
 
+Deterministic transcript harness:
+
+```txt
+src/runtime/agent-loop-harness.ts
+tests/e2e/agent-loop-harness.test.ts
+```
+
+The harness creates a real paired `extension` session, feeds scripted assistant
+turns through `processListenTurn`, captures outbound Conduit messages, and
+refreshes the active nonce between turns. It is the local browser-free lab bench
+for agent-loop scenarios: prose plus one `conduit` block, nonce rotation,
+structured repair, `.help` recovery, result rendering, and final run logs.
+
 ---
 
 ## Phase 11 — ChatGPT Extension

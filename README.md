@@ -321,6 +321,7 @@ Working locally:
 - control-panel approvals for confirmation-required actions
 - local update-manifest check path
 - Chrome/Brave unpacked extension bridge
+- deterministic agent-loop transcript harness
 - paired-session nonce enforcement for extension agent loops
 - agent-initiated handshake request rejection/repair path
 - structured repair envelopes for malformed/rejected requests
@@ -329,8 +330,8 @@ Working locally:
 - local run logs
 - policy-routed local tools
 - Vitest coverage for protocol parsing, session/nonce handling, policy,
-  clipboard execution, extension transport queueing, app scaffolding, and CLI
-  e2e flows
+  clipboard execution, extension transport queueing, deterministic agent-loop
+  transcripts, app scaffolding, and CLI e2e flows
 
 Still not production-ready:
 

@@ -385,6 +385,8 @@ Implemented:
 
 ```txt
 tests/e2e/cli-e2e.test.ts
+src/runtime/agent-loop-harness.ts
+tests/e2e/agent-loop-harness.test.ts
 ```
 
 Covered behavior:
@@ -392,6 +394,7 @@ Covered behavior:
 - `conduit doctor` reports the public runtime surface.
 - `conduit run --transport fake` completes a real child-process run and writes final run logs under `CONDUIT_STATE_DIR`.
 - `conduit session create/list/revoke` works through the public CLI, prints a valid starter envelope, persists the session, and records revocation.
+- deterministic agent-loop transcripts create a real paired extension session, accept prose plus one compact `conduit` block, consume/rotate nonces, render `CONDUIT_RESULTS_JSON`, recover from a rejected request via `.help`, and finalize run logs without a live browser.
 
 The local app tests also exercise the request path end to end through app APIs:
 
