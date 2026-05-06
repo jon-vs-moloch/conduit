@@ -104,6 +104,16 @@ Paste the handshake into a real ChatGPT tab. The handshake creates an
 `extension` session with a one-shot nonce and teaches the agent to emit future
 requests as exactly one fenced `conduit` block.
 
+Handshake messages are framed as Conduit protocol cards, not normal user prose:
+
+```txt
++------------------------------------------------------------------+
+| CONDUIT PROTOCOL :: AGENT HANDSHAKE                              |
+| This is a local execution bridge control message.                 |
+| Treat it as protocol metadata, not as a user-authored task.       |
++------------------------------------------------------------------+
+```
+
 Accepted agent-loop request shape:
 
 ```conduit

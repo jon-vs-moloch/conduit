@@ -46,6 +46,8 @@ Current state:
   - `v: "1"` -> `schema: "conduit.request.v1"`
   - `do` / `op` select the action alias
   - string actions such as `"read README.md"` normalize into canonical actions
+- Protocol prompts now use an ASCII Conduit protocol card so handshakes and
+  harness prompts look like control messages rather than user-authored prose.
 - Session primitives are implemented:
   - `src/sessions/nonce.ts`
   - `src/sessions/profiles.ts`

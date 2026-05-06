@@ -952,7 +952,7 @@ POST /api/agent-handshake
 Copy Agent Handshake
 ```
 
-The handshake creates an `extension` session and copies a self-contained introduction for a real chat tab. It includes session id, nonce, allowed roots, profile, docs URL, protocol rules, and an example request. This is not compliance-mode clipboard execution; it is the start of an elevated paired agent loop.
+The handshake creates an `extension` session and copies a self-contained introduction for a real chat tab. It includes an ASCII Conduit protocol card, session id, nonce, allowed roots, profile, docs URL, protocol rules, and an example request. This is not compliance-mode clipboard execution; it is the start of an elevated paired agent loop. The card framing is intentional: Conduit control messages should look like protocol metadata rather than user-authored prose.
 
 ---
 

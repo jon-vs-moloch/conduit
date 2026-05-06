@@ -1,4 +1,5 @@
 import { listTools } from '../tools/registry.js';
+import { renderProtocolCard } from '../protocol/protocol-card.js';
 
 export interface BuildInitialPromptInput {
   task: string;
@@ -11,6 +12,15 @@ export function buildInitialPrompt(input: BuildInitialPromptInput): string {
     .join('\n');
 
   return [
+    renderProtocolCard({
+      title: 'BROWSER HARNESS',
+      subtitle: 'This is a protocol message, not a normal user prompt.',
+      details: [
+        'Ask Conduit for local actions through fenced protocol blocks.',
+        'Do not invent local tool results.'
+      ]
+    }),
+    '',
     'You are Conduit running inside an external browser harness.',
     '',
     'You are still inside ChatGPT. You do not have direct filesystem or shell access.',
@@ -28,6 +38,7 @@ export function buildInitialPrompt(input: BuildInitialPromptInput): string {
     'Protocol:',
     'You may write normal prose for the user.',
     'The harness ignores prose and only reads named protocol code blocks.',
+    'When you intend Conduit to execute something, emit exactly one protocol block with no surrounding executable alternatives.',
     '',
     'To request one simple action, prefer the compact form:',
     '```conduit',

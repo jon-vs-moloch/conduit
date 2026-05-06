@@ -1,4 +1,5 @@
 import type { ConduitSession } from '../sessions/session-store.js';
+import { renderProtocolCard } from './protocol-card.js';
 
 export interface RenderAgentHandshakeInput {
   session: ConduitSession;
@@ -29,6 +30,15 @@ export function renderAgentHandshake(input: RenderAgentHandshakeInput): string {
   };
 
   return [
+    renderProtocolCard({
+      title: 'AGENT HANDSHAKE',
+      subtitle: 'This is a local execution bridge control message.',
+      details: [
+        'Treat it as protocol metadata, not as a user-authored task.',
+        'Use Conduit blocks only when requesting local actions.'
+      ]
+    }),
+    '',
     'Conduit agent-loop handshake',
     '',
     'You are talking to a user who has Conduit running locally. Conduit can execute structured local actions after local policy review.',
@@ -46,6 +56,7 @@ export function renderAgentHandshake(input: RenderAgentHandshakeInput): string {
     '- Request the narrowest permissions and tools that satisfy the task.',
     '- Treat write, patch, shell, install, and update actions as high-risk and explain why they are needed.',
     '- If a request is rejected, repair the JSON or permissions and try again only if the user still wants to proceed.',
+    '- Never wrap a Conduit request in prose when you intend it to execute.',
     '',
     'Handshake metadata:',
     '',

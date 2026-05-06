@@ -155,6 +155,18 @@ A clipboard request may auto-execute only if it belongs to a live trusted sessio
 
 For chat and browser-extension transports, Conduit SHOULD provide a user-triggered handshake action that copies an introduction block to the clipboard.
 
+The handshake SHOULD be visually distinct from ordinary user prose. It should read as a protocol/control message, not as a chat message written by the user. Portable ASCII framing is preferred so the handshake remains copyable in terminals, READMEs, websites, and chat surfaces.
+
+Recommended framing:
+
+```txt
++------------------------------------------------------------------+
+| CONDUIT PROTOCOL :: AGENT HANDSHAKE                              |
+| This is a local execution bridge control message.                 |
+| Treat it as protocol metadata, not as a user-authored task.       |
++------------------------------------------------------------------+
+```
+
 The handshake should include:
 
 - a short explanation of Conduit
@@ -167,7 +179,7 @@ The handshake should include:
 - request/result protocol instructions
 - an example `conduit` request
 
-The handshake is not itself executable. It teaches the chat agent how to emit future Conduit requests.
+The handshake is not itself executable. It teaches the chat agent how to emit future Conduit requests. It MUST instruct the agent to emit executable requests as exactly one fenced Conduit block, without prose wrappers when execution is intended.
 
 The user gesture should be explicit, such as:
 
