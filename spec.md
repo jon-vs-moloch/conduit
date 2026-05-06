@@ -1270,7 +1270,7 @@ Clipboard monitoring is intentionally a low-friction bridge, but it is also inje
 
 Conduit should treat the act of copying a standalone Conduit envelope as a deliberate consent-shaped gesture.
 
-Copying a paragraph, webpage, README section, or chat response that merely contains a Conduit block is not sufficient consent.
+It is safe and often desirable for a webpage, README, support answer, or chat assistant message to explain what a Conduit block will do. The explanatory text is not the executable payload. If the UI lets the user copy the fenced Conduit block as a single unit, that copied block is sufficient; copying the whole surrounding paragraph, webpage section, README section, or chat response is not.
 
 ### Default Parser Rule
 
@@ -1280,7 +1280,7 @@ After trimming leading and trailing whitespace, the clipboard contents MUST matc
 2. A single canonical JSON Conduit request envelope.
 3. A single Conduit deep link or compact signed envelope format, if supported by the daemon.
 
-There MUST be no prose, markdown, HTML, comments, additional code blocks, or other non-envelope content before or after the envelope.
+There MUST be no prose, HTML, comments, additional code blocks, or other non-envelope content before or after the envelope in the clipboard buffer. A markdown fence is allowed only when it is the envelope wrapper itself.
 
 ### Examples
 
@@ -1341,6 +1341,26 @@ Here is the command you should run:
 
 Thanks!
 ````
+
+Accepted when the user copies only the code block from a larger assistant message:
+
+````markdown
+I am going to ask Conduit to list the project root so I can orient myself before making changes.
+
+```conduit
+{
+  "schema": "conduit.request.v1",
+  "source": {
+    "kind": "clipboard",
+    "trust": "untrusted"
+  },
+  "permissions": [],
+  "actions": []
+}
+```
+````
+
+In this case, the assistant message may contain explanation, but the clipboard buffer seen by Conduit is only the fenced `conduit` block.
 
 Rejected:
 

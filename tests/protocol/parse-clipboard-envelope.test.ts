@@ -12,6 +12,18 @@ describe('parseClipboardEnvelope', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('accepts a fenced conduit block copied by itself from a larger explanatory message', () => {
+    const copiedCodeBlockOnly = [
+      '```conduit',
+      JSON.stringify(validRequest()),
+      '```'
+    ].join('\n');
+
+    const result = parseClipboardEnvelope(copiedCodeBlockOnly);
+
+    expect(result.ok).toBe(true);
+  });
+
   it('accepts exactly one raw JSON envelope', () => {
     const result = parseClipboardEnvelope(JSON.stringify(validRequest()));
 

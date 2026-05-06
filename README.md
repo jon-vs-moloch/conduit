@@ -188,16 +188,21 @@ The clipboard daemon uses exact-envelope parsing by default. It trims leading
 and trailing whitespace, then executes only if the entire clipboard is exactly
 one valid Conduit envelope.
 
+Agents, docs, and webpages can still explain what a Conduit request does around
+a copyable code block. The important boundary is what lands on the clipboard:
+copying just the fenced `conduit` block is valid; copying the whole surrounding
+message is not.
+
 Accepted clipboard forms:
 
 - one fenced `conduit` block containing strict JSON
 - one fenced `conduit-json` block containing strict JSON
 - one raw JSON Conduit request object
 
-The daemon rejects arbitrary prose, README fragments, webpages, chats, or
-markdown that merely contain an embedded Conduit block. Embedded block parsing
-belongs to authenticated agent-loop transports or explicit unsafe power-user
-settings, not compliance-mode clipboard monitoring.
+The daemon rejects clipboard buffers containing arbitrary prose, README
+fragments, webpages, chats, or markdown that merely contain an embedded Conduit
+block. Embedded block parsing belongs to authenticated agent-loop transports or
+explicit unsafe power-user settings, not compliance-mode clipboard monitoring.
 
 Clipboard-origin requests must include:
 

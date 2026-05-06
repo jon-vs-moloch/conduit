@@ -40,7 +40,7 @@ describe('web presence', () => {
     expect(api).toContain('permissions');
     expect(api).toContain('sessionId');
     expect(api).toContain('nonce');
-    expect(api).toContain('rejects prose wrappers');
+    expect(api).toContain('clipboard buffer itself cannot include that prose');
     expect(api).toContain('Duplicate JSON keys');
   });
 });
