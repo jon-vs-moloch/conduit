@@ -239,6 +239,82 @@ describe('ExtensionTransport', () => {
     });
   });
 
+  it('extends the progress timeout when the extension keeps reporting send progress', async () => {
+    const send = transport.sendMessage('hello ChatGPT');
+
+    const response = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
+    const outbound = await response.json() as OutboundPollResponse;
+    await expect(send).resolves.toBeUndefined();
+
+    await delay(20);
+    await postJson(`${transport.getBaseUrl()}/api/conduit-tab-status`, {
+      tabId: 42,
+      status: 'outbound_waiting_for_send_button',
+      transportId: outbound.transportId
+    });
+    await delay(20);
+    await postJson(`${transport.getBaseUrl()}/api/conduit-tab-status`, {
+      tabId: 42,
+      status: 'outbound_inserted_text',
+      transportId: outbound.transportId
+    });
+
+    const stillPending = await fetch(`${transport.getBaseUrl()}/health`);
+    await expect(stillPending.json()).resolves.toMatchObject({
+      pendingSendResults: 1,
+      retryingOutbound: 0,
+      pendingSendResultIds: [outbound.transportId]
+    });
+
+    await postJson(`${transport.getBaseUrl()}/api/conduit-send-result`, {
+      transportId: outbound.transportId,
+      status: 'sent'
+    });
+  });
+
+  it('manually retries a retrying outbound before its scheduled backoff fires', async () => {
+    const send = transport.sendMessage('hello ChatGPT');
+
+    const firstResponse = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
+    const first = await firstResponse.json() as OutboundPollResponse;
+    await expect(send).resolves.toBeUndefined();
+
+    await postJson(`${transport.getBaseUrl()}/api/conduit-send-result`, {
+      transportId: first.transportId,
+      status: 'failed',
+      error: 'Composer not ready'
+    });
+
+    const retrying = await fetch(`${transport.getBaseUrl()}/health`);
+    await expect(retrying.json()).resolves.toMatchObject({
+      retryingOutbound: 1,
+      retryingOutboundIds: [first.transportId]
+    });
+
+    const retryResult = await postJson(`${transport.getBaseUrl()}/api/conduit-retry`, {
+      transportId: first.transportId
+    });
+    expect(retryResult).toMatchObject({
+      ok: true,
+      transportId: first.transportId,
+      status: 'queued'
+    });
+
+    const retryState = await fetch(`${transport.getBaseUrl()}/health`);
+    await expect(retryState.json()).resolves.toMatchObject({
+      retryingOutbound: 0,
+      lastTransportError: {
+        transportId: first.transportId,
+        status: 'manual_retry',
+        retrying: true
+      }
+    });
+
+    const retryResponse = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
+    const retry = await retryResponse.json() as OutboundPollResponse;
+    expect(retry.transportId).toBe(first.transportId);
+  });
+
   it('marks outbound sends as needing attention after retries are exhausted', async () => {
     const send = transport.sendMessage('hello ChatGPT');
 
@@ -308,6 +384,29 @@ describe('ExtensionTransport', () => {
     const retryResponse = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);
     const retry = await retryResponse.json() as OutboundPollResponse;
     expect(retry.transportId).toBe(first.transportId);
+
+    const state = await fetch(`${transport.getBaseUrl()}/health`);
+    await expect(state.json()).resolves.toMatchObject({
+      attentionOutbound: 0,
+      lastTransportError: {
+        transportId: first.transportId,
+        status: 'manual_retry'
+      }
+    });
+  });
+
+  it('returns a useful error when there is no outbound message to retry', async () => {
+    const response = await fetch(`${transport.getBaseUrl()}/api/conduit-retry`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'No outbound message is available to retry.'
+    });
   });
 });
 
