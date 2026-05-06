@@ -113,6 +113,8 @@ describe('macOS menu-bar package scaffold', () => {
     expect(content).toContain('Extension context invalidated');
     expect(popup).toContain('/api/conduit-retry');
     expect(popup).toContain('attentionOutboundIds');
+    expect(popup).toContain('Retry available');
+    expect(popup).toContain('bridgeCanRetry');
   });
 
   it('exposes package scripts and a Codex run action for local launch', async () => {

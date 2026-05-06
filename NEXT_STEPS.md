@@ -174,7 +174,7 @@ Known-good verification from the latest bridge recovery/UI pass:
 
 ```txt
 npm run build  # passed
-npm test       # passed, 24 files / 116 tests
+npm test       # passed, 29 files / 130 tests
 npm run macos:build # passed
 npm run doctor # passed
 ```
@@ -218,7 +218,7 @@ conduit session list
 conduit session revoke <sessionId>
 ```
 
-The create command prints a starter `conduit` block containing `sessionId` and `nonce`. It currently uses an empty `actions: []` as a template, which is intentionally not executable because the request schema requires at least one action. Before a polished UX pass, either label this more explicitly as a template or print a concrete safe example action.
+The create command prints a starter `conduit` block containing `sessionId`, `nonce`, and a concrete safe `list: "."` action. The starter block is executable for read-only project-root orientation, which makes first-run clipboard testing less confusing than a deliberately empty template.
 
 ## Completed Gate: Real Policy Engine
 

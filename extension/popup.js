@@ -8,6 +8,7 @@ const elements = {
   lastSend: document.getElementById('lastSend'),
   lastError: document.getElementById('lastError'),
   attentionPanel: document.getElementById('attentionPanel'),
+  attentionTitle: document.getElementById('attentionTitle'),
   attentionText: document.getElementById('attentionText'),
   retryButton: document.getElementById('retryButton'),
   refreshButton: document.getElementById('refreshButton')
@@ -38,13 +39,15 @@ async function refresh() {
     elements.lastSend.textContent = '-';
     elements.lastError.textContent = error instanceof Error ? error.message : String(error);
     elements.attentionPanel.classList.add('hidden');
+    elements.attentionPanel.classList.remove('attention');
   }
 }
 
 function render(health) {
   const needsAttention = health.lastTransportError?.needsAttention === true || health.attentionOutbound > 0;
+  const canRetry = bridgeCanRetry(health);
   const hasTab = health.tabStatusCount > 0;
-  setBadge(needsAttention ? 'Attention' : hasTab ? 'Connected' : 'No tab', needsAttention ? 'error' : hasTab ? 'ok' : '');
+  setBadge(needsAttention ? 'Attention' : canRetry ? 'Sending' : hasTab ? 'Connected' : 'No tab', needsAttention ? 'error' : hasTab ? 'ok' : '');
 
   elements.tabState.textContent = hasTab ? 'alive' : 'missing';
   elements.outboundState.textContent = outboundSummary(health);
@@ -58,12 +61,14 @@ function render(health) {
     ? health.lastTransportError.error || health.lastTransportError.status || 'Unknown transport error'
     : 'None';
 
-  if (needsAttention) {
-    const id = health.attentionOutboundIds?.[0] || health.lastTransportError?.transportId || 'unknown';
-    elements.attentionText.textContent = `${id}: ${elements.lastError.textContent}`;
+  if (canRetry) {
+    elements.attentionTitle.textContent = needsAttention ? 'Needs attention' : 'Retry available';
+    elements.attentionText.textContent = retryPanelText(health);
+    elements.attentionPanel.classList.toggle('attention', needsAttention);
     elements.attentionPanel.classList.remove('hidden');
   } else {
     elements.attentionPanel.classList.add('hidden');
+    elements.attentionPanel.classList.remove('attention');
   }
 }
 
@@ -79,6 +84,25 @@ function selectRetryTransportId(health) {
   return health?.attentionOutboundIds?.[0]
     || health?.retryingOutboundIds?.[0]
     || health?.pendingSendResultIds?.[0];
+}
+
+function bridgeCanRetry(health) {
+  return Boolean(health?.attentionOutboundIds?.length || health?.retryingOutboundIds?.length || health?.pendingSendResultIds?.length);
+}
+
+function retryPanelText(health) {
+  const id = selectRetryTransportId(health) || health?.lastTransportError?.transportId || 'unknown';
+  const error = health?.lastTransportError?.error || health?.lastTransportError?.status || 'transport state';
+  if (health?.lastTransportError?.needsAttention === true || health?.attentionOutbound > 0) {
+    return `${id}: ${error}`;
+  }
+  if (health?.retryingOutbound > 0) {
+    return `${id}: retry is scheduled; retry now if the ChatGPT tab is ready.`;
+  }
+  if (health?.pendingSendResults > 0) {
+    return `${id}: send is in progress; retry if the tab appears stalled.`;
+  }
+  return `${id}: retry available.`;
 }
 
 function setBadge(text, className) {
