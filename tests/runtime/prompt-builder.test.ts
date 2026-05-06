@@ -11,6 +11,7 @@ describe('buildInitialPrompt', () => {
     expect(prompt).toContain('CONDUIT PROTOCOL :: BROWSER HARNESS');
     expect(prompt).toContain('not a normal user prompt');
     expect(prompt).toContain('Ask Conduit for local actions');
+    expect(prompt).toContain('you may explain what you are doing');
     expect(prompt).toContain('```conduit');
     expect(prompt).toContain('"schema": "conduit.request.v1"');
     expect(prompt).toContain('```conduit-final');

@@ -29,6 +29,7 @@ describe('renderAgentHandshake', () => {
     expect(handshake).toContain('"sessionId": "sess_test"');
     expect(handshake).toContain('"nonce": "call_test"');
     expect(handshake).toContain('```conduit');
-    expect(handshake).toContain('Never wrap a Conduit request in prose');
+    expect(handshake).toContain('explain what you are doing in normal prose');
+    expect(handshake).toContain('exactly one clearly separated fenced `conduit` block');
   });
 });

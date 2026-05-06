@@ -179,7 +179,7 @@ The handshake should include:
 - request/result protocol instructions
 - an example `conduit` request
 
-The handshake is not itself executable. It teaches the chat agent how to emit future Conduit requests. It MUST instruct the agent to emit executable requests as exactly one fenced Conduit block, without prose wrappers when execution is intended.
+The handshake is not itself executable. It teaches the chat agent how to emit future Conduit requests. It MUST instruct the agent that a paired-session assistant turn may include normal prose for the user, but executable content should be exactly one clearly separated fenced Conduit block per turn.
 
 The user gesture should be explicit, such as:
 

@@ -38,7 +38,7 @@ export function buildInitialPrompt(input: BuildInitialPromptInput): string {
     'Protocol:',
     'You may write normal prose for the user.',
     'The harness ignores prose and only reads named protocol code blocks.',
-    'When you intend Conduit to execute something, emit exactly one protocol block with no surrounding executable alternatives.',
+    'When you intend Conduit to execute something, you may explain what you are doing, then emit exactly one clearly separated protocol block for that action request.',
     '',
     'To request one simple action, prefer the compact form:',
     '```conduit',

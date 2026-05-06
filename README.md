@@ -102,7 +102,8 @@ Conduit menu -> Copy Agent Handshake
 
 Paste the handshake into a real ChatGPT tab. The handshake creates an
 `extension` session with a one-shot nonce and teaches the agent to emit future
-requests as exactly one fenced `conduit` block.
+requests as a clearly separated fenced `conduit` block. The agent can still
+talk to the user before or after that block; the block is the executable part.
 
 Handshake messages are framed as Conduit protocol cards, not normal user prose:
 
