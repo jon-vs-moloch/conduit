@@ -67,6 +67,7 @@ npm run app
 npm run listen
 npm run spike
 npm run site:dev
+npm run eval:protocol
 npm run macos:build
 npm run macos:run
 npm run macos:package
@@ -91,6 +92,27 @@ npm run login:chromium
 
 The durable v0 browser path is the extension bridge, not Playwright-controlled
 ChatGPT. Human auth happens in the user's normal browser.
+
+## Protocol Model Evals
+
+Conduit includes a live eval harness for checking whether small models can emit
+valid compact protocol requests. It is opt-in and never runs during normal
+tests. Provide a Google AI Studio key through the environment:
+
+```txt
+GOOGLE_AI_STUDIO_API_KEY="..." npm run eval:protocol
+```
+
+Useful knobs:
+
+```txt
+CONDUIT_EVAL_MODELS="gemini-2.5-flash-lite,gemini-2.5-flash" npm run eval:protocol
+CONDUIT_EVAL_OUTPUT="dist/evals/protocol-model-eval.json" npm run eval:protocol
+```
+
+The harness asks each model for compact Conduit requests, scores whether it used
+one separated `conduit` block, checks that the block parses locally, and records
+which tools were normalized from the response.
 
 ## Browser Extension Loop
 

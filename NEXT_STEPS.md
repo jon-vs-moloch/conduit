@@ -134,6 +134,11 @@ Current state:
 - Static-site coverage is implemented:
   - `tests/website/web-presence.test.ts`
   - required page existence, local link integrity, and public API security copy
+- Protocol model eval coverage is implemented:
+  - `src/evals/protocol-model-eval.ts`
+  - `scripts/protocol-model-eval.ts`
+  - `npm run eval:protocol`
+  - optional Google AI Studio live evals score whether small models emit one separated `conduit` block that parses into expected tools
 - macOS package scaffold coverage is implemented:
   - `tests/macos/menu-bar-package.test.ts`
   - SwiftPM package layout, build script, Codex Run action, release metadata knobs, and update manifest shape
@@ -194,11 +199,17 @@ npm run spike
 npm run macos:build
 ```
 
-Known-good verification from the latest packaging/download polish pass:
+Optional live model eval:
+
+```txt
+GOOGLE_AI_STUDIO_API_KEY="..." npm run eval:protocol
+```
+
+Known-good verification from the latest protocol model eval pass:
 
 ```txt
 npm run build  # passed
-npm test       # passed, 29 files / 136 tests
+npm test       # passed, 30 files / 140 tests
 ```
 
 ## Completed Gate: GitHub Repository
