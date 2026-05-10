@@ -41,6 +41,9 @@ describe('control panel app', () => {
     const script = await fetchText(`${app.url}/app.js`);
     expect(script).toContain('initialView');
     expect(script).toContain("location.hash");
+    expect(script).toContain('Untrusted Conduit request');
+    expect(script).toContain('Approve once runs under read-only local policy');
+    expect(script).toContain('Declared permissions');
 
     const status = await fetchJson(`${app.url}/api/status`);
     expect(status).toMatchObject({

@@ -371,6 +371,8 @@ Still not production-ready:
 - signed and notarized desktop release artifact
 - real auto-replacement updater
 - hosted release downloads
+- paid trust-analysis service that can explain requested code/actions before execution
+- sandboxed dry-run/test evidence for higher-risk requests
 - robust tab discard/throttle detection
 - comprehensive live ChatGPT extension tests
 

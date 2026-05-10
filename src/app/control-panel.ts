@@ -352,6 +352,8 @@ function renderAppHtml(): string {
     input, select { border: 1px solid var(--border); border-radius: 7px; padding: 9px 10px; background: #fff; color: var(--text); min-width: 0; }
     .empty { color: var(--muted); padding: 18px 4px; }
     .status-line { font-size: 13px; color: var(--muted); margin-top: 10px; min-height: 19px; }
+    .approval-actions { margin: 0; padding-left: 18px; }
+    .approval-actions li { margin: 3px 0; }
     .hidden { display: none; }
     @media (max-width: 820px) {
       .shell { grid-template-columns: 1fr; }
@@ -523,14 +525,21 @@ function renderApprovals() {
     $('approvalsTable').innerHTML = '<div class="empty">No active approvals.</div>';
     return;
   }
-  $('approvalsTable').innerHTML = '<table><thead><tr><th>Action</th><th>State</th><th>Reason</th><th>Args</th><th></th></tr></thead><tbody>' +
+  $('approvalsTable').innerHTML = '<table><thead><tr><th>Request</th><th>State</th><th>Review</th><th>Details</th><th></th></tr></thead><tbody>' +
     visible.map((approval) => '<tr>' +
-      '<td><strong>' + escapeHtml(approval.action?.tool || '') + '</strong><br><span class="subtle">' + escapeHtml(approval.approvalId) + '</span></td>' +
+      '<td>' + approvalRequestHtml(approval) + '</td>' +
       '<td>' + approvalStateHtml(approval) + '</td>' +
-      '<td>' + escapeHtml(approval.action?.reason || '(none provided)') + '<br><span class="subtle">' + escapeHtml(approval.policyReason || '') + '</span></td>' +
-      '<td><pre>' + escapeHtml(JSON.stringify(approval.action?.args || {}, null, 2)) + '</pre></td>' +
+      '<td>' + approvalReviewHtml(approval) + '</td>' +
+      '<td>' + approvalDetailsHtml(approval) + '</td>' +
       '<td>' + approvalActionsHtml(approval) + '</td>' +
     '</tr>').join('') + '</tbody></table>';
+}
+
+function approvalRequestHtml(approval) {
+  if (approval.action?.tool === 'conduit.review') {
+    return '<strong>Untrusted Conduit request</strong><br><span class="subtle">' + escapeHtml(approval.approvalId) + '</span>';
+  }
+  return '<strong>' + escapeHtml(approval.action?.tool || '') + '</strong><br><span class="subtle">' + escapeHtml(approval.approvalId) + '</span>';
 }
 
 function approvalButtonLabel(approval) {
@@ -547,6 +556,51 @@ function approvalStateHtml(approval) {
     ? 'run ' + approval.executionRunId
     : approval.executionError || approval.decisionReason || '';
   return '<strong>' + escapeHtml(state) + '</strong>' + (detail ? '<br><span class="subtle">' + escapeHtml(detail) + '</span>' : '');
+}
+
+function approvalReviewHtml(approval) {
+  if (approval.action?.tool !== 'conduit.review') {
+    return escapeHtml(approval.action?.reason || '(none provided)') + '<br><span class="subtle">' + escapeHtml(approval.policyReason || '') + '</span>';
+  }
+  const args = approval.action?.args || {};
+  return [
+    '<strong>' + escapeHtml(sourceLabel(args.source)) + '</strong>',
+    '<span class="subtle">' + escapeHtml(permissionSummary(args.permissions)) + '</span>',
+    '<span class="subtle">Approve once runs under read-only local policy. It does not create a trusted session.</span>'
+  ].join('<br>');
+}
+
+function approvalDetailsHtml(approval) {
+  if (approval.action?.tool !== 'conduit.review') {
+    return '<pre>' + escapeHtml(JSON.stringify(approval.action?.args || {}, null, 2)) + '</pre>';
+  }
+  const args = approval.action?.args || {};
+  const actions = Array.isArray(args.actions) ? args.actions : [];
+  const actionList = actions.length > 0
+    ? actions.map((action) => '<li><code>' + escapeHtml(action.id || '(no id)') + '</code> ' + escapeHtml(action.tool || '') + '</li>').join('')
+    : '<li>No actions declared.</li>';
+  const capabilityText = Array.isArray(args.requestedCapabilities) && args.requestedCapabilities.length > 0
+    ? '<br><span class="subtle">Capabilities: ' + escapeHtml(args.requestedCapabilities.join(', ')) + '</span>'
+    : '';
+  const sessionText = args.sessionId
+    ? '<br><span class="subtle">Session claim: ' + escapeHtml(args.sessionId) + '</span>'
+    : '<br><span class="subtle">No live trusted session.</span>';
+  return '<ul class="approval-actions">' + actionList + '</ul>' + capabilityText + sessionText;
+}
+
+function sourceLabel(source) {
+  if (!source || typeof source !== 'object') return 'Source: unknown';
+  const kind = source.kind || 'unknown';
+  const trust = source.trust || 'untrusted';
+  return 'Source: ' + kind + ' / ' + trust;
+}
+
+function permissionSummary(permissions) {
+  if (!Array.isArray(permissions) || permissions.length === 0) return 'Declared permissions: none';
+  return 'Declared permissions: ' + permissions.map((permission) => {
+    if (!permission || typeof permission !== 'object') return 'unknown';
+    return [permission.kind, permission.scope, permission.access].filter(Boolean).join(':') || 'unknown';
+  }).join(', ');
 }
 
 function approvalActionsHtml(approval) {

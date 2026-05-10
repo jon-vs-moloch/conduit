@@ -825,6 +825,15 @@ browser.open
 notification.send
 ```
 
+Future trust-analysis services MAY attach advisory evidence to approvals:
+
+- LLM explanation of requested code, patches, commands, manifests, or tool plans
+- sandboxed dry-run/test results for higher-risk requests
+- risk summaries that highlight touched files, network use, persistence, secrets, or installer behavior
+
+These services are advisory. They MUST NOT replace local policy enforcement,
+sandboxing, signature checks, or explicit user approval.
+
 ### 13.2 Tool Definition
 
 ```ts

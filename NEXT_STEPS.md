@@ -174,6 +174,10 @@ Current state:
   - the macOS menu-bar app polls the control app for pending approvals
   - new approval ids emit a native notification
   - clicking an approval notification opens the control panel at `#approvals`
+- Future paid trust-analysis/sandboxing track is planned:
+  - optional LLM review explains requested code/actions before execution
+  - higher-risk approvals may include sandboxed dry-run or test evidence
+  - sandboxing remains a core roadmap feature, not a substitute for local consent
 
 Verification commands:
 
@@ -579,6 +583,16 @@ Behavior:
 - notification title distinguishes untrusted request reviews from generic action approvals
 - clicking the notification opens Conduit Control directly to `#approvals`
 - control-panel hash routing preserves direct links to Approvals, Sessions, Runs, or Overview
+
+## Planned Gate: Trust Analysis And Sandboxing
+
+Future paid/platform feature:
+
+- have an LLM inspect requested code, patches, shell commands, manifests, and tool plans before execution
+- explain likely effects, risks, touched files, and suspicious behavior in plain language
+- optionally run the request or generated patch in a sandbox first and summarize test results
+- attach the explanation and sandbox evidence to the approval record
+- keep this advisory: local policy, sandboxing, signatures, and explicit user approval remain authoritative
 
 ## Completed Gate: Native Result Blocks
 
