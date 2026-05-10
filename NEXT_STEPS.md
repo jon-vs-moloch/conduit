@@ -196,6 +196,7 @@ Current state:
   - `GET /api/diagnostics`
   - control panel `#diagnostics` bug-report preview
   - extension popup links to the local bug-report surface
+  - macOS menu-bar app has a Report Bug action and error alerts can open diagnostics
   - bundles redact session nonces, request payloads, file contents, API keys, environment variables, and secrets by default
 
 Verification commands:

@@ -124,6 +124,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         logsItem.target = self
         menu.addItem(logsItem)
 
+        let bugItem = NSMenuItem(title: "Report Bug", action: #selector(reportBug), keyEquivalent: "b")
+        bugItem.target = self
+        menu.addItem(bugItem)
+
         menu.addItem(NSMenuItem.separator())
 
         let quitItem = NSMenuItem(title: "Quit Conduit", action: #selector(quit), keyEquivalent: "q")
@@ -309,6 +313,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         openControlPanelURL(path: "#approvals")
     }
 
+    private func openDiagnostics() {
+        openControlPanelURL(path: "#diagnostics")
+    }
+
     private func openControlPanelURL(path: String) {
         if !controlApp.isRunning && !controlAppExternalAvailable {
             startControlApp()
@@ -387,6 +395,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openLogs() {
         NSWorkspace.shared.open(LogFiles.logDirectory)
+    }
+
+    @objc private func reportBug() {
+        openDiagnostics()
     }
 
     @objc private func quit() {
@@ -552,7 +564,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func presentError(_ title: String, _ error: Error) {
         let alert = NSAlert(error: error)
         alert.messageText = title
-        alert.runModal()
+        alert.informativeText = [
+            error.localizedDescription,
+            "",
+            "You can open the bug-report view to preview a redacted diagnostic bundle."
+        ].joined(separator: "\n")
+        alert.addButton(withTitle: "Report Bug")
+        alert.addButton(withTitle: "OK")
+        if alert.runModal() == .alertFirstButtonReturn {
+            openDiagnostics()
+        }
     }
 }
 

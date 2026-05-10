@@ -26,6 +26,10 @@ describe('macOS menu-bar package scaffold', () => {
     expect(main).toContain('pkill');
     expect(main).toContain('Check for Updates');
     expect(main).toContain('Open Logs');
+    expect(main).toContain('Report Bug');
+    expect(main).toContain('openDiagnostics');
+    expect(main).toContain('#diagnostics');
+    expect(main).toContain('redacted diagnostic bundle');
     expect(main).toContain('Logs/Conduit');
     expect(main).toContain('/api/status');
     expect(main).toContain('http://127.0.0.1:3333/health');
