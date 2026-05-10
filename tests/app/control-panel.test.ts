@@ -167,8 +167,10 @@ describe('control panel app', () => {
     });
     expect(approved.approval).toMatchObject({
       approvalId: approval.approvalId,
-      status: 'approved'
+      status: 'approved',
+      executionStatus: 'ran'
     });
+    expect(approved.approval.executionRunId).toBeTruthy();
     expect(approved.execution).toMatchObject({
       status: 'executed',
       approvalId: approval.approvalId
@@ -192,7 +194,9 @@ describe('control panel app', () => {
     });
     expect(approvedAgain.approval).toMatchObject({
       approvalId: approval.approvalId,
-      status: 'approved'
+      status: 'approved',
+      executionStatus: 'ran',
+      executionRunId: approved.execution.runId
     });
     expect(approvedAgain.execution).toBeUndefined();
   });
@@ -228,6 +232,10 @@ describe('control panel app', () => {
     });
     expect(approved.execution.rendered).toContain('"status": "denied"');
     expect(approved.execution.rendered).toContain('Tool denied by read-only profile: file.write');
+    expect(approved.approval).toMatchObject({
+      executionStatus: 'ran',
+      executionRunId: approved.execution.runId
+    });
     await expect(readFile(path.join(projectRoot, 'notes.txt'), 'utf8')).rejects.toThrow();
   });
 

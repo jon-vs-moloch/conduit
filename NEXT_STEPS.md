@@ -169,6 +169,7 @@ Current state:
   - `conduit.review` approval records can execute their reviewed actions once from the control app
   - approved untrusted reviews run under a one-shot read-only policy session
   - approved-review runs are logged with `mode: "approved-review"` and the approval id
+  - approval records store execution state, run id, and execution errors for UI lifecycle display
 
 Verification commands:
 
@@ -550,7 +551,8 @@ Behavior:
 
 - exact untrusted clipboard envelopes create `conduit.review` approvals
 - the control app labels these approvals as one-request decisions
-- approving one executes only the reviewed actions once
+- approving one moves the review through pending/running/ran/failed UI states
+- stale or repeated approval calls do not execute the reviewed actions again
 - execution uses a one-shot read-only policy session rooted at the review project
 - write, patch, shell, or other non-read-only actions do not become trusted just because the review was approved
 - resulting runs are visible in the Runs view with `mode: "approved-review"`

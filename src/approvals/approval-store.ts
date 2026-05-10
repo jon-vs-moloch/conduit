@@ -18,6 +18,7 @@ export interface ConfirmationRequest {
 }
 
 export type ApprovalStatus = 'pending' | 'approved' | 'denied' | 'expired';
+export type ApprovalExecutionStatus = 'running' | 'ran' | 'failed';
 
 export interface ApprovalRecord extends ConfirmationRequest {
   approvalId: string;
@@ -27,6 +28,11 @@ export interface ApprovalRecord extends ConfirmationRequest {
   decidedAt?: string;
   decidedBy?: string;
   decisionReason?: string;
+  executionStatus?: ApprovalExecutionStatus;
+  executionRunId?: string;
+  executionError?: string;
+  executionStartedAt?: string;
+  executionFinishedAt?: string;
 }
 
 export interface StoredApprovalOptions {
@@ -67,6 +73,10 @@ export async function listApprovalRequests(): Promise<ApprovalRecord[]> {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+export async function getApprovalRequest(approvalId: string): Promise<ApprovalRecord | null> {
+  return readApprovalRecord(approvalId);
+}
+
 export async function resolveApprovalRequest(
   approvalId: string,
   status: 'approved' | 'denied',
@@ -89,6 +99,45 @@ export async function resolveApprovalRequest(
     decidedAt: now,
     ...(decidedBy ? { decidedBy } : {}),
     ...(decisionReason ? { decisionReason } : {})
+  };
+  await writeApprovalRecord(updated);
+  return updated;
+}
+
+export async function markApprovalExecutionRunning(approvalId: string): Promise<ApprovalRecord> {
+  const record = await readApprovalRecord(approvalId);
+  if (!record) {
+    throw new Error(`Unknown approval request: ${approvalId}`);
+  }
+  if (record.executionStatus) {
+    return record;
+  }
+  const now = new Date().toISOString();
+  const updated: ApprovalRecord = {
+    ...record,
+    executionStatus: 'running',
+    executionStartedAt: now,
+    updatedAt: now
+  };
+  await writeApprovalRecord(updated);
+  return updated;
+}
+
+export async function markApprovalExecutionFinished(
+  approvalId: string,
+  result: { status: 'ran'; runId: string } | { status: 'failed'; error: string }
+): Promise<ApprovalRecord> {
+  const record = await readApprovalRecord(approvalId);
+  if (!record) {
+    throw new Error(`Unknown approval request: ${approvalId}`);
+  }
+  const now = new Date().toISOString();
+  const updated: ApprovalRecord = {
+    ...record,
+    executionStatus: result.status,
+    ...(result.status === 'ran' ? { executionRunId: result.runId } : { executionError: result.error }),
+    executionFinishedAt: now,
+    updatedAt: now
   };
   await writeApprovalRecord(updated);
   return updated;

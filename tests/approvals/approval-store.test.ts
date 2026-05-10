@@ -4,6 +4,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createApprovalRequest,
+  markApprovalExecutionFinished,
+  markApprovalExecutionRunning,
   listApprovalRequests,
   requestStoredApproval,
   resolveApprovalRequest,
@@ -67,6 +69,30 @@ describe('approval store', () => {
       decidedBy: 'terminal',
       decisionReason: 'Nope.'
     });
+  });
+
+  it('records approval execution lifecycle metadata', async () => {
+    const approval = await createApprovalRequest(sampleRequest());
+    const running = await markApprovalExecutionRunning(approval.approvalId);
+    expect(running).toMatchObject({
+      approvalId: approval.approvalId,
+      executionStatus: 'running'
+    });
+    expect(running.executionStartedAt).toBeTruthy();
+
+    const runningAgain = await markApprovalExecutionRunning(approval.approvalId);
+    expect(runningAgain.executionStartedAt).toBe(running.executionStartedAt);
+
+    const ran = await markApprovalExecutionFinished(approval.approvalId, {
+      status: 'ran',
+      runId: 'run_test'
+    });
+    expect(ran).toMatchObject({
+      approvalId: approval.approvalId,
+      executionStatus: 'ran',
+      executionRunId: 'run_test'
+    });
+    expect(ran.executionFinishedAt).toBeTruthy();
   });
 });
 

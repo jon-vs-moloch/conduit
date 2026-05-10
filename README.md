@@ -312,7 +312,9 @@ permissions, requested capabilities, actions, and whether session credentials
 were present. Approving one executes the reviewed actions once under a narrow
 read-only local policy rooted at the review's project root. It does not grant a
 standing permission, create a trusted session, or broaden future execution
-policy.
+policy. Review approvals keep execution lifecycle metadata, so the control app
+can show whether a reviewed request is pending, running, ran, or failed, and can
+link directly to the resulting run.
 
 ## Tools And Policy
 

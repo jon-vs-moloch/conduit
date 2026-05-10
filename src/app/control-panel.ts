@@ -8,7 +8,13 @@ import { getRunsRoot, getStateRoot } from '../state/paths.js';
 import { createSession, listSessions, revokeSession } from '../sessions/session-store.js';
 import { isPermissionProfileName } from '../sessions/profiles.js';
 import { renderAgentHandshake } from '../protocol/render-agent-handshake.js';
-import { listApprovalRequests, resolveApprovalRequest } from '../approvals/approval-store.js';
+import {
+  getApprovalRequest,
+  listApprovalRequests,
+  markApprovalExecutionFinished,
+  markApprovalExecutionRunning,
+  resolveApprovalRequest
+} from '../approvals/approval-store.js';
 import { executeApprovedReview } from '../daemon/execute-request.js';
 
 export interface ControlPanelOptions {
@@ -173,16 +179,33 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       const body = await readJsonBody(req) as { reason?: unknown };
       const decision = approvalMatch[2] === 'approve' ? 'approved' : 'denied';
       const approvalId = decodeURIComponent(approvalMatch[1]);
-      const before = (await listApprovalRequests()).find((record) => record.approvalId === approvalId);
+      const before = await getApprovalRequest(approvalId);
       const approval = await resolveApprovalRequest(
         approvalId,
         decision,
         typeof body.reason === 'string' ? body.reason : undefined,
         'control-app'
       );
-      if (decision === 'approved' && before?.status === 'pending' && approval.action.tool === 'conduit.review') {
-        const execution = await executeApprovedReview(approval, { yes: true });
-        sendJson(res, 200, { approval, execution });
+      if (
+        decision === 'approved'
+        && before?.status === 'pending'
+        && !before.executionStatus
+        && approval.action.tool === 'conduit.review'
+      ) {
+        const running = await markApprovalExecutionRunning(approval.approvalId);
+        try {
+          const execution = await executeApprovedReview(running, { yes: true });
+          const updated = execution.runId
+            ? await markApprovalExecutionFinished(approval.approvalId, { status: 'ran', runId: execution.runId })
+            : await markApprovalExecutionFinished(approval.approvalId, { status: 'failed', error: execution.reason ?? 'Execution did not produce a run.' });
+          sendJson(res, 200, { approval: updated, execution });
+        } catch (error) {
+          const updated = await markApprovalExecutionFinished(approval.approvalId, {
+            status: 'failed',
+            error: error instanceof Error ? error.message : String(error)
+          });
+          sendJson(res, 500, { approval: updated, error: updated.executionError });
+        }
         return;
       }
       sendJson(res, 200, { approval });
@@ -495,23 +518,49 @@ function renderSessions() {
 }
 
 function renderApprovals() {
-  const pending = state.approvals.filter((approval) => approval.status === 'pending');
-  if (pending.length === 0) {
-    $('approvalsTable').innerHTML = '<div class="empty">No pending approvals.</div>';
+  const visible = state.approvals.filter((approval) => approval.status === 'pending' || approval.executionStatus);
+  if (visible.length === 0) {
+    $('approvalsTable').innerHTML = '<div class="empty">No active approvals.</div>';
     return;
   }
-  $('approvalsTable').innerHTML = '<table><thead><tr><th>Action</th><th>Reason</th><th>Args</th><th></th></tr></thead><tbody>' +
-    pending.map((approval) => '<tr>' +
+  $('approvalsTable').innerHTML = '<table><thead><tr><th>Action</th><th>State</th><th>Reason</th><th>Args</th><th></th></tr></thead><tbody>' +
+    visible.map((approval) => '<tr>' +
       '<td><strong>' + escapeHtml(approval.action?.tool || '') + '</strong><br><span class="subtle">' + escapeHtml(approval.approvalId) + '</span></td>' +
+      '<td>' + approvalStateHtml(approval) + '</td>' +
       '<td>' + escapeHtml(approval.action?.reason || '(none provided)') + '<br><span class="subtle">' + escapeHtml(approval.policyReason || '') + '</span></td>' +
       '<td><pre>' + escapeHtml(JSON.stringify(approval.action?.args || {}, null, 2)) + '</pre></td>' +
-      '<td><button class="btn primary" data-approve="' + encodeURIComponent(approval.approvalId) + '">' + approvalButtonLabel(approval) + '</button> ' +
-      '<button class="btn danger" data-deny="' + encodeURIComponent(approval.approvalId) + '">Deny</button></td>' +
+      '<td>' + approvalActionsHtml(approval) + '</td>' +
     '</tr>').join('') + '</tbody></table>';
 }
 
 function approvalButtonLabel(approval) {
   return approval.action?.tool === 'conduit.review' ? 'Approve once' : 'Approve';
+}
+
+function approvalStateHtml(approval) {
+  const state = approval.executionStatus
+    ? approval.executionStatus
+    : approval.status === 'pending'
+      ? 'pending review'
+      : approval.status;
+  const detail = approval.executionRunId
+    ? 'run ' + approval.executionRunId
+    : approval.executionError || approval.decisionReason || '';
+  return '<strong>' + escapeHtml(state) + '</strong>' + (detail ? '<br><span class="subtle">' + escapeHtml(detail) + '</span>' : '');
+}
+
+function approvalActionsHtml(approval) {
+  if (approval.executionStatus === 'running') {
+    return '<button class="btn" disabled>Running...</button>';
+  }
+  if (approval.executionRunId) {
+    return '<button class="btn" data-result="' + encodeURIComponent(approval.executionRunId) + '">View result</button>';
+  }
+  if (approval.status !== 'pending') {
+    return '<span class="subtle">' + escapeHtml(approval.status) + '</span>';
+  }
+  return '<button class="btn primary" data-approve="' + encodeURIComponent(approval.approvalId) + '">' + approvalButtonLabel(approval) + '</button> ' +
+    '<button class="btn danger" data-deny="' + encodeURIComponent(approval.approvalId) + '">Deny</button>';
 }
 
 function renderRuns() {
