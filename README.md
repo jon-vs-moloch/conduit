@@ -314,7 +314,9 @@ read-only local policy rooted at the review's project root. It does not grant a
 standing permission, create a trusted session, or broaden future execution
 policy. Review approvals keep execution lifecycle metadata, so the control app
 can show whether a reviewed request is pending, running, ran, or failed, and can
-link directly to the resulting run.
+link directly to the resulting run. The macOS menu-bar app watches for pending
+approvals and posts a system notification that opens the control panel directly
+to the Approvals view.
 
 ## Tools And Policy
 

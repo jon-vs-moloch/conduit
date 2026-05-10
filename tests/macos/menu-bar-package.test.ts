@@ -31,6 +31,11 @@ describe('macOS menu-bar package scaffold', () => {
     expect(main).toContain('http://127.0.0.1:3333/health');
     expect(main).toContain('needs attention');
     expect(main).toContain('UNUserNotificationCenter');
+    expect(main).toContain('refreshApprovalNotifications');
+    expect(main).toContain('/api/approvals');
+    expect(main).toContain('Conduit approval required');
+    expect(main).toContain('openApprovals');
+    expect(main).toContain('#approvals');
     expect(main).toContain('Control App Already Running');
     expect(main).toContain('Control App Needs Restart');
     expect(main).toContain('agentHandshake');

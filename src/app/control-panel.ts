@@ -585,6 +585,14 @@ function setView(view) {
     document.querySelector('[data-view="' + id + '"]').classList.toggle('active', id === view);
   }
   $('title').textContent = view[0].toUpperCase() + view.slice(1);
+  if (location.hash !== '#' + view) {
+    history.replaceState(null, '', '#' + view);
+  }
+}
+
+function initialView() {
+  const hash = location.hash.replace(/^#/, '');
+  return ['overview', 'sessions', 'approvals', 'runs'].includes(hash) ? hash : 'overview';
 }
 
 document.addEventListener('click', async (event) => {
@@ -720,6 +728,7 @@ function selectRetryTransportId(bridge) {
     || bridge?.pendingSendResultIds?.[0];
 }
 
+setView(initialView());
 refresh().catch((error) => setStatus(error.message));
 `;
 }

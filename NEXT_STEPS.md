@@ -170,6 +170,10 @@ Current state:
   - approved untrusted reviews run under a one-shot read-only policy session
   - approved-review runs are logged with `mode: "approved-review"` and the approval id
   - approval records store execution state, run id, and execution errors for UI lifecycle display
+- Approval notifications are implemented:
+  - the macOS menu-bar app polls the control app for pending approvals
+  - new approval ids emit a native notification
+  - clicking an approval notification opens the control panel at `#approvals`
 
 Verification commands:
 
@@ -556,6 +560,25 @@ Behavior:
 - execution uses a one-shot read-only policy session rooted at the review project
 - write, patch, shell, or other non-read-only actions do not become trusted just because the review was approved
 - resulting runs are visible in the Runs view with `mode: "approved-review"`
+
+## Completed Gate: Approval Notifications
+
+Implemented:
+
+```txt
+macos/ConduitMenuBar/Sources/ConduitMenuBar/main.swift
+src/app/control-panel.ts
+tests/macos/menu-bar-package.test.ts
+tests/app/control-panel.test.ts
+```
+
+Behavior:
+
+- menu-bar app polls `GET /api/approvals`
+- each new pending approval id triggers one native notification
+- notification title distinguishes untrusted request reviews from generic action approvals
+- clicking the notification opens Conduit Control directly to `#approvals`
+- control-panel hash routing preserves direct links to Approvals, Sessions, Runs, or Overview
 
 ## Completed Gate: Native Result Blocks
 

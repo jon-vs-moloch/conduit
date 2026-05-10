@@ -28,10 +28,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var controlAppSupportsAgentHandshake = false
     private var agentListenerNeedsAttention = false
     private var notifiedTransportIds = Set<String>()
+    private var notifiedApprovalIds = Set<String>()
+    private var pendingApprovalCount = 0
     private var healthTimer: Timer?
     private var terminationConfirmed = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        UNUserNotificationCenter.current().delegate = self
         requestNotificationAuthorization()
         configureStatusItem()
         rebuildMenu()
@@ -44,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startDaemon()
         healthTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             self?.refreshControlAppHealth()
+            self?.refreshApprovalNotifications()
             self?.refreshAgentListenerHealth()
         }
     }
@@ -133,7 +137,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let control = "control \(controlAppStatusSummary())"
         let agentState = agentListenerNeedsAttention ? "agent needs attention" : "agent \(agentListener.statusSummary)"
         let daemonState = "daemon \(daemon.statusSummary)"
-        return "Status: \(control), \(agentState), \(daemonState)"
+        let approvals = pendingApprovalCount > 0 ? ", approvals \(pendingApprovalCount) pending" : ""
+        return "Status: \(control), \(agentState), \(daemonState)\(approvals)"
     }
 
     private func refreshMenu() {
@@ -192,6 +197,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }.resume()
     }
 
+    private func refreshApprovalNotifications() {
+        guard controlApp.isRunning || controlAppExternalAvailable, let url = URL(string: "http://127.0.0.1:47831/api/approvals") else {
+            if pendingApprovalCount != 0 {
+                pendingApprovalCount = 0
+                refreshMenu()
+            }
+            return
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 0.75
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+            guard
+                (response as? HTTPURLResponse)?.statusCode == 200,
+                let approvals = data.flatMap({ try? JSONDecoder().decode(ApprovalsResponse.self, from: $0) })
+            else {
+                return
+            }
+            let pending = approvals.approvals.filter { approval in
+                approval.status == "pending" && approval.executionStatus == nil
+            }
+            DispatchQueue.main.async {
+                guard let self else {
+                    return
+                }
+                self.pendingApprovalCount = pending.count
+                for approval in pending where !self.notifiedApprovalIds.contains(approval.approvalId) {
+                    self.notifiedApprovalIds.insert(approval.approvalId)
+                    self.notifyApprovalRequired(approval)
+                }
+                self.refreshMenu()
+            }
+        }.resume()
+    }
+
     private func refreshAgentListenerHealth() {
         guard agentListener.isRunning, let url = URL(string: "http://127.0.0.1:3333/health") else {
             if agentListenerNeedsAttention {
@@ -232,6 +271,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         UNUserNotificationCenter.current().add(request)
     }
 
+    private func notifyApprovalRequired(_ approval: ApprovalSummary) {
+        let content = UNMutableNotificationContent()
+        content.title = approval.action.tool == "conduit.review" ? "Conduit review required" : "Conduit approval required"
+        content.body = approval.action.reason ?? approval.policyReason ?? "A local action is waiting for approval."
+        content.sound = .default
+        content.userInfo = [
+            "conduitAction": "openApprovals",
+            "approvalId": approval.approvalId
+        ]
+        let request = UNNotificationRequest(identifier: "conduit-approval-\(approval.approvalId)", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
     private func requestNotificationAuthorization() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
@@ -250,10 +302,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openControlPanel() {
+        openControlPanelURL(path: "")
+    }
+
+    private func openApprovals() {
+        openControlPanelURL(path: "#approvals")
+    }
+
+    private func openControlPanelURL(path: String) {
         if !controlApp.isRunning && !controlAppExternalAvailable {
             startControlApp()
         }
-        if let url = URL(string: "http://127.0.0.1:47831") {
+        if let url = URL(string: "http://127.0.0.1:47831\(path)") {
             NSWorkspace.shared.open(url)
         }
     }
@@ -496,8 +556,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+extension AppDelegate: UNUserNotificationCenterDelegate {
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if response.notification.request.content.userInfo["conduitAction"] as? String == "openApprovals" {
+            DispatchQueue.main.async {
+                self.openApprovals()
+            }
+        }
+        completionHandler()
+    }
+}
+
 struct AgentHandshakeResponse: Decodable {
     let handshake: String
+}
+
+struct ApprovalsResponse: Decodable {
+    let approvals: [ApprovalSummary]
+}
+
+struct ApprovalSummary: Decodable {
+    let approvalId: String
+    let status: String
+    let policyReason: String?
+    let executionStatus: String?
+    let action: ApprovalActionSummary
+}
+
+struct ApprovalActionSummary: Decodable {
+    let tool: String
+    let reason: String?
 }
 
 struct ControlStatusResponse: Decodable {

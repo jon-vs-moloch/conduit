@@ -38,6 +38,9 @@ describe('control panel app', () => {
     expect(html).toContain('Conduit Control');
     expect(html).toContain('Extension Bridge');
     expect(html).toContain('Retry Outbound');
+    const script = await fetchText(`${app.url}/app.js`);
+    expect(script).toContain('initialView');
+    expect(script).toContain("location.hash");
 
     const status = await fetchJson(`${app.url}/api/status`);
     expect(status).toMatchObject({
