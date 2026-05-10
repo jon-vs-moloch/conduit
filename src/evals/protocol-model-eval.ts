@@ -57,21 +57,20 @@ export const DEFAULT_PROTOCOL_EVAL_SCENARIOS: ProtocolEvalScenario[] = [
     id: 'orient-readme',
     title: 'Orient in a project',
     expectedTools: ['file.list', 'file.read'],
-    requiredPhrases: ['I will'],
     prompt: [
       'The user asked you to inspect a local project before making changes.',
       'Request the smallest useful Conduit actions to list the project root and read README.md.',
-      'Use the compact Conduit dialect where possible.'
+      'Use one Conduit block. For the two local actions, use one compact do array.'
     ].join('\n')
   },
   {
     id: 'status-before-edit',
     title: 'Check worktree before editing',
     expectedTools: ['git.status', 'git.diff'],
-    requiredPhrases: ['before'],
     prompt: [
       'The user asked you to continue an in-progress coding task.',
       'Before proposing edits, request Conduit actions to inspect git status and the README diff.',
+      'Use compact status and diff actions. Do not use shell, cmd, run, or terminal commands.',
       'Keep the executable request in one clearly separated conduit block.'
     ].join('\n')
   },
@@ -79,7 +78,6 @@ export const DEFAULT_PROTOCOL_EVAL_SCENARIOS: ProtocolEvalScenario[] = [
     id: 'ask-help',
     title: 'Ask for protocol help',
     expectedTools: ['conduit.help'],
-    requiredPhrases: ['help'],
     prompt: [
       'You are not sure which Conduit fields are available.',
       'Ask Conduit for concise protocol examples instead of guessing a larger schema.',
@@ -101,8 +99,12 @@ export function renderProtocolEvalSystemPrompt(input: {
     '+------------------------------------------------------------------+',
     '',
     'You may speak to the user in normal prose before or after a request.',
+    'Before every Conduit request, write one short sentence explaining what you are asking Conduit to do and why.',
     'When you need local action, emit exactly one fenced `conduit` code block in that turn.',
     'Prefer compact JSON fields: v, session, n, do, path, why.',
+    'For multiple actions, use one do array inside one block, never multiple conduit blocks.',
+    'Available compact actions are: help, about, list, read, status, diff, write, patch, shell.',
+    'For git state, prefer do: ["status", "diff README.md"]. Do not invent run/cmd fields.',
     'Use strict JSON only inside the code block.',
     'Use this session and nonce:',
     '',
@@ -116,8 +118,7 @@ export function renderProtocolEvalSystemPrompt(input: {
       v: '1',
       session: sessionId,
       n: nonce,
-      do: 'list',
-      path: '.',
+      do: ['list .', 'read README.md'],
       why: 'Orient before making changes.'
     }, null, 2),
     '```'
@@ -180,7 +181,7 @@ export function scoreProtocolResponse(input: {
   const proseOutsideBlock = removeBlockText(input.responseText, blocks.map((block) => block.text)).trim();
   if (proseOutsideBlock.length > 0) {
     score += 0.1;
-  } else if ((input.scenario.requiredPhrases?.length ?? 0) > 0) {
+  } else {
     findings.push('Expected explanatory prose outside the Conduit block.');
   }
 
