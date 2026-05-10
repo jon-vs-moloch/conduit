@@ -32,6 +32,7 @@ export interface ProtocolEvalCaseResult {
   parsedActionCount: number;
   parsedTools: string[];
   findings: string[];
+  providerError?: string;
 }
 
 export interface ProtocolEvalRunResult {
@@ -138,12 +139,20 @@ export async function runProtocolModelEval(input: {
 
   for (const model of models) {
     for (const scenario of scenarios) {
-      const responseText = await input.provider.generate({ model, scenario, systemPrompt });
-      results.push(scoreProtocolResponse({
-        modelId: model.id,
-        scenario,
-        responseText
-      }));
+      try {
+        const responseText = await input.provider.generate({ model, scenario, systemPrompt });
+        results.push(scoreProtocolResponse({
+          modelId: model.id,
+          scenario,
+          responseText
+        }));
+      } catch (error) {
+        results.push(createProviderErrorResult({
+          modelId: model.id,
+          scenarioId: scenario.id,
+          error
+        }));
+      }
     }
   }
 
@@ -286,4 +295,24 @@ function removeBlockText(text: string, blockTexts: string[]): string {
     remaining = remaining.replace(blockText, '');
   }
   return remaining;
+}
+
+function createProviderErrorResult(input: {
+  modelId: string;
+  scenarioId: string;
+  error: unknown;
+}): ProtocolEvalCaseResult {
+  const providerError = input.error instanceof Error ? input.error.message : String(input.error);
+  return {
+    modelId: input.modelId,
+    scenarioId: input.scenarioId,
+    passed: false,
+    score: 0,
+    responseText: '',
+    extractedBlockCount: 0,
+    parsedActionCount: 0,
+    parsedTools: [],
+    findings: [`Provider error: ${providerError}`],
+    providerError
+  };
 }

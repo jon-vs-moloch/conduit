@@ -103,6 +103,40 @@ describe('protocol model eval harness', () => {
     expect(result.results[0]?.parsedTools).toEqual(['git.status', 'git.diff']);
   });
 
+  it('records provider errors and continues the run', async () => {
+    const provider: ProtocolEvalProvider = {
+      async generate() {
+        throw new Error('quota exhausted');
+      }
+    };
+
+    const result = await runProtocolModelEval({
+      models: [{ id: 'tiny-model', provider: 'fake' }],
+      scenarios: [
+        {
+          id: 'orient',
+          title: 'Orient',
+          prompt: 'List root.',
+          expectedTools: ['file.list']
+        }
+      ],
+      provider
+    });
+
+    expect(result.summary).toMatchObject({
+      total: 1,
+      passed: 0,
+      failed: 1,
+      averageScore: 0
+    });
+    expect(result.results[0]).toMatchObject({
+      modelId: 'tiny-model',
+      scenarioId: 'orient',
+      providerError: 'quota exhausted',
+      findings: ['Provider error: quota exhausted']
+    });
+  });
+
   it('renders a minimal reusable system prompt with fixed session and nonce', () => {
     const prompt = renderProtocolEvalSystemPrompt({
       sessionId: 'sess_test',
