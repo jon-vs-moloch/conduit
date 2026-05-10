@@ -58,7 +58,7 @@ describe('ClipboardWatcher', () => {
     await expect(watcher.checkOnce()).resolves.toEqual({ status: 'unchanged' });
   });
 
-  it('writes rejection text for malformed or untrusted envelopes', async () => {
+  it('writes review text for untrusted envelopes without a live session', async () => {
     const clipboard = new FakeClipboard(conduitBlock({
       schema: 'conduit.request.v1',
       source: { kind: 'clipboard', trust: 'untrusted' },
@@ -67,14 +67,20 @@ describe('ClipboardWatcher', () => {
         { id: 'read', tool: 'file.read', args: { path: 'README.md' } }
       ]
     }));
+    const events: string[] = [];
 
-    const watcher = new ClipboardWatcher({ clipboard });
+    const watcher = new ClipboardWatcher({
+      clipboard,
+      onEvent: (event) => events.push(event.type)
+    });
     const result = await watcher.checkOnce();
 
-    expect(result.status).toBe('rejected');
-    expect(clipboard.text).toContain('Conduit request repair:');
-    expect(clipboard.text).toContain('Trusted execution requires sessionId and nonce.');
-    expect(clipboard.text).toContain('CONDUIT_REPAIR_JSON');
+    expect(result.status).toBe('requires_review');
+    expect(result.output?.approvalId).toBeTruthy();
+    expect(clipboard.text).toContain('Conduit review required.');
+    expect(clipboard.text).toContain('Open Conduit Control -> Approvals');
+    expect(clipboard.text).toContain(`Approval ID: ${result.output?.approvalId}`);
+    expect(events).toEqual(['requires_review']);
   });
 
   it('writes structured repair output when exact request envelope is malformed', async () => {

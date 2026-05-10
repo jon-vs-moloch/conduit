@@ -1,6 +1,6 @@
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
-import type { ConfirmationRequest } from '../approvals/approval-store.js';
+import { createApprovalRequest, type ConfirmationRequest } from '../approvals/approval-store.js';
 import { parseClipboardEnvelope } from '../protocol/parse-clipboard-envelope.js';
 import { renderConduitRepair, renderConduitResults, type ConduitRepairEnvelope } from '../protocol/render-results.js';
 import { classifyRepairCode, createRepairEnvelope } from '../protocol/repair.js';
@@ -11,7 +11,7 @@ import { ensureRunDir, writeTextFile } from '../state/logs.js';
 import { createRunId } from '../util/ids.js';
 import { executeActions } from '../runtime/execute-actions.js';
 
-export type ExecuteRequestStatus = 'executed' | 'ignored' | 'rejected';
+export type ExecuteRequestStatus = 'executed' | 'ignored' | 'rejected' | 'requires_review';
 
 export interface ExecuteRequestInput {
   text: string;
@@ -25,6 +25,7 @@ export interface ExecuteRequestOutput {
   runDir?: string;
   sessionId?: string;
   nextNonce?: string;
+  approvalId?: string;
   results?: ToolResult[];
   rendered?: string;
   reason?: string;
@@ -60,20 +61,27 @@ export async function executeConduitRequest(
   options: Pick<ExecuteRequestInput, 'yes' | 'confirm'> = {}
 ): Promise<ExecuteRequestOutput> {
   if (!request.sessionId || !request.nonce) {
-    const repair = createRepairEnvelope({
-      reason: 'Trusted execution requires sessionId and nonce.',
-      code: 'missing_session',
-      request
-    });
+    const review = await createUntrustedRequestReview(request, 'Request is not attached to a trusted session.');
     return {
-      status: 'rejected',
-      reason: repair.reason,
-      repair,
-      rendered: renderConduitRepair(repair)
+      status: 'requires_review',
+      approvalId: review.approvalId,
+      reason: 'Request is not attached to a trusted session. Local review is required before execution.',
+      rendered: renderReviewRequired(review.approvalId, request)
     };
   }
 
   const validation = await validateSessionNonce(request.sessionId, request.nonce);
+  if (!validation.ok && validation.reason === 'Unknown session.') {
+    const review = await createUntrustedRequestReview(request, validation.reason);
+    return {
+      status: 'requires_review',
+      sessionId: request.sessionId,
+      approvalId: review.approvalId,
+      reason: 'Request references an unknown session. Local review is required before execution.',
+      rendered: renderReviewRequired(review.approvalId, request)
+    };
+  }
+
   if (!validation.ok) {
     const repair = createRepairEnvelope({
       reason: validation.reason,
@@ -136,6 +144,49 @@ export async function executeConduitRequest(
     results,
     rendered
   };
+}
+
+async function createUntrustedRequestReview(request: ActionRequestBlock, policyReason: string) {
+  return createApprovalRequest({
+    action: {
+      id: 'review_untrusted_request',
+      tool: 'conduit.review',
+      args: {
+        source: request.source ?? null,
+        permissions: request.permissions ?? [],
+        requestedCapabilities: request.requestedCapabilities ?? [],
+        actions: request.actions,
+        sessionId: request.sessionId ?? null,
+        noncePresent: Boolean(request.nonce)
+      },
+      reason: request.description ?? request.title ?? 'Review untrusted Conduit request before execution.',
+      risk: 'high'
+    },
+    policyReason,
+    prompt: [
+      '[Conduit] Review untrusted request before execution.',
+      '',
+      `Source: ${JSON.stringify(request.source ?? null)}`,
+      `Permissions: ${JSON.stringify(request.permissions ?? [])}`,
+      `Actions: ${request.actions.map((action) => `${action.id}:${action.tool}`).join(', ') || '(none)'}`,
+      '',
+      'Approve only if you trust the source and intended local effects.'
+    ].join('\n')
+  });
+}
+
+function renderReviewRequired(approvalId: string, request: ActionRequestBlock): string {
+  return [
+    'Conduit review required.',
+    '',
+    'This exact Conduit envelope is not attached to a trusted live session, so it was not executed.',
+    'Open Conduit Control -> Approvals to inspect the requested source, permissions, actions, and reasons.',
+    '',
+    `Approval ID: ${approvalId}`,
+    `Actions: ${request.actions.map((action) => `${action.id}:${action.tool}`).join(', ') || '(none)'}`,
+    '',
+    'Approving this review does not broaden future permissions. It is a one-request consent decision.'
+  ].join('\n');
 }
 
 

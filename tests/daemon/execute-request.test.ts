@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { executeRequestFromText } from '../../src/daemon/execute-request.js';
+import { listApprovalRequests } from '../../src/approvals/approval-store.js';
 import { createSession, getSession } from '../../src/sessions/session-store.js';
 
 describe('executeRequestFromText', () => {
@@ -32,7 +33,7 @@ describe('executeRequestFromText', () => {
     });
   });
 
-  it('rejects requests without a trusted session and nonce', async () => {
+  it('opens review for requests without a trusted session and nonce', async () => {
     const output = await executeRequestFromText({
       text: conduitBlock({
         schema: 'conduit.request.v1',
@@ -45,12 +46,31 @@ describe('executeRequestFromText', () => {
     });
 
     expect(output).toMatchObject({
-      status: 'rejected',
-      reason: 'Trusted execution requires sessionId and nonce.'
+      status: 'requires_review',
+      reason: 'Request is not attached to a trusted session. Local review is required before execution.'
     });
-    expect(output.rendered).toContain('<<<CONDUIT_REPAIR_JSON');
-    expect(output.rendered).toContain('"code": "missing_session"');
-    expect(output.rendered).toContain('"schema": "conduit.request.v1"');
+    expect(output.approvalId).toBeTruthy();
+    expect(output.rendered).toContain('Conduit review required.');
+    expect(output.rendered).toContain('read:file.read');
+
+    const approvals = await listApprovalRequests();
+    expect(approvals[0]).toMatchObject({
+      approvalId: output.approvalId,
+      status: 'pending',
+      action: {
+        id: 'review_untrusted_request',
+        tool: 'conduit.review',
+        args: {
+          source: { kind: 'clipboard', trust: 'untrusted' },
+          permissions: [],
+          actions: [
+            { id: 'read', tool: 'file.read', args: { path: 'README.md' } }
+          ],
+          noncePresent: false
+        }
+      },
+      policyReason: 'Request is not attached to a trusted session.'
+    });
   });
 
   it('returns structured repair output for malformed exact envelopes', async () => {

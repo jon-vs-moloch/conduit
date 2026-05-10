@@ -51,5 +51,9 @@ function logEvent(event: ClipboardWatcherEvent): void {
     console.log(`[Conduit daemon] Rejected request: ${event.reason}`);
     return;
   }
+  if (event.type === 'requires_review') {
+    console.log(`[Conduit daemon] Review required: ${event.reason}${event.approvalId ? ` approval=${event.approvalId}` : ''}`);
+    return;
+  }
   console.error(`[Conduit daemon] Error: ${event.error}`);
 }

@@ -224,15 +224,23 @@ fragments, webpages, chats, or markdown that merely contain an embedded Conduit
 block. Embedded block parsing belongs to authenticated agent-loop transports or
 explicit unsafe power-user settings, not compliance-mode clipboard monitoring.
 
+Exact untrusted envelopes without a live trusted session are not executed by
+default. Conduit writes a review-required message and creates a pending review
+record in the control panel so the user can inspect the claimed source,
+permissions, actions, and reasons before deciding.
+
 Clipboard-origin requests must include:
 
 - `schema: "conduit.request.v1"`
 - `source`
 - `permissions`
-- `sessionId`
-- `nonce`
 - either one compact action shortcut or `actions: [...]`
 - stable action `id` values for explicit multi-action requests
+
+Trusted clipboard execution additionally requires a live `sessionId` and
+one-shot `nonce`. Requests without those session fields can still be valid
+Conduit envelopes, but they stop at local review until the user explicitly
+approves the one request.
 
 ## Health And Logs
 
@@ -293,6 +301,12 @@ resolved decision. Approval records store where the decision came from, such as
 `terminal` or `control-app`. Open the control panel and use the **Approvals** tab
 to inspect action, reason, policy, and args before approving or denying.
 
+Untrusted exact clipboard envelopes also create approval records. These records
+are labeled as `conduit.review` and summarize the claimed source, declared
+permissions, requested capabilities, actions, and whether session credentials
+were present. They are review-first consent prompts; approving one does not
+grant a standing permission or broaden future execution policy.
+
 ## Tools And Policy
 
 Implemented tools:
@@ -325,6 +339,7 @@ Working locally:
 - unsigned macOS preview DMG packaging
 - supervised app/control/listener/daemon lifecycle
 - control-panel approvals for confirmation-required actions
+- review records for untrusted exact clipboard envelopes
 - local update-manifest check path
 - Chrome/Brave unpacked extension bridge
 - deterministic agent-loop transcript harness

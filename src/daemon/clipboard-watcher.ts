@@ -11,13 +11,14 @@ export interface ClipboardWatcherOptions {
 
 export type ClipboardWatcherEvent =
   | { type: 'ignored'; reason: string }
+  | { type: 'requires_review'; reason: string; approvalId?: string; sessionId?: string }
   | { type: 'accepted'; runId?: string; sessionId?: string }
   | { type: 'rejected'; reason: string; sessionId?: string }
   | { type: 'executed'; runId: string; sessionId?: string }
   | { type: 'error'; error: string };
 
 export interface ClipboardOnceResult {
-  status: 'unchanged' | 'ignored' | 'rejected' | 'executed' | 'error';
+  status: 'unchanged' | 'ignored' | 'requires_review' | 'rejected' | 'executed' | 'error';
   output?: ExecuteRequestOutput;
   error?: string;
 }
@@ -60,6 +61,19 @@ export class ClipboardWatcher {
           sessionId: output.sessionId
         });
         return { status: 'rejected', output };
+      }
+
+      if (output.status === 'requires_review') {
+        const rendered = output.rendered ?? renderReviewRequired(output.reason ?? 'Review required.', output.approvalId);
+        await this.options.clipboard.write(rendered);
+        this.lastSeenHash = hashText(rendered);
+        this.emit({
+          type: 'requires_review',
+          reason: output.reason ?? 'Review required.',
+          approvalId: output.approvalId,
+          sessionId: output.sessionId
+        });
+        return { status: 'requires_review', output };
       }
 
       this.emit({ type: 'accepted', runId: output.runId, sessionId: output.sessionId });
@@ -117,6 +131,18 @@ export function renderWorkingStatus(runId?: string, sessionId?: string): string 
     '',
     ...(runId ? [`Run: ${runId}`] : []),
     ...(sessionId ? [`Session: ${sessionId}`] : [])
+  ].join('\n');
+}
+
+export function renderReviewRequired(reason: string, approvalId?: string): string {
+  return [
+    'Conduit review required.',
+    '',
+    reason,
+    '',
+    'Open Conduit Control -> Approvals to inspect and decide.',
+    '',
+    ...(approvalId ? [`Approval ID: ${approvalId}`] : [])
   ].join('\n');
 }
 

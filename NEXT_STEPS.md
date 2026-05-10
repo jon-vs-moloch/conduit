@@ -75,6 +75,7 @@ Current state:
   - `src/daemon/execute-request.ts`
   - parses copied `conduit` request text
   - requires `sessionId` and `nonce`
+  - exact envelopes without a live trusted session create a pending review record instead of executing
   - consumes nonce before local execution
   - executes through the shared policy/action executor
   - renders `CONDUIT_RESULTS_JSON`
@@ -157,7 +158,8 @@ Current state:
   - popup and control panel can trigger manual retry
 - Structured repair output is implemented:
   - rejected exact envelopes return `CONDUIT_REPAIR_JSON`
-  - malformed JSON, multiple envelopes, missing session/nonce, and invalid session failures include repair instructions and an example request
+  - malformed JSON, multiple envelopes, and invalid session failures include repair instructions and an example request
+  - exact envelopes missing a live trusted session create a review-required approval record
   - clipboard watcher writes repair output back instead of plain rejection text when available
 
 Verification commands:
@@ -295,7 +297,7 @@ Behavior:
 
 - ignores ordinary text
 - rejects malformed, embedded, or multiple request blocks
-- rejects requests without `sessionId` and `nonce`
+- opens local review for requests without a live trusted `sessionId` and `nonce`
 - requires clipboard metadata: `schema`, `source`, and `permissions`
 - validates session nonce
 - consumes nonce before execution
