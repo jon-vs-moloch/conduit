@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Conduit
+Comment=Local consent-shaped agent execution runtime
+Exec=conduit-open-control
+Terminal=false
+Categories=Development;Utility;
+StartupNotify=true

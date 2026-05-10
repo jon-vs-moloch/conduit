@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if command -v xdg-open >/dev/null 2>&1; then
+  xdg-open "http://127.0.0.1:47831"
+else
+  printf '%s\n' "Open http://127.0.0.1:47831"
+fi

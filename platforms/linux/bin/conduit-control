@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT"
+
+export CONDUIT_PARENT_PID="$$"
+if [[ -f "$ROOT/runtime/dist/src/cli/index.js" ]]; then
+  node "$ROOT/runtime/dist/src/cli/index.js" app start --port 47831
+else
+  npm run conduit -- app start --port 47831
+fi

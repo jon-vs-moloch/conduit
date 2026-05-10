@@ -17,6 +17,8 @@
     "macos:build": "./script/build_and_run.sh --build-only",
     "macos:run": "./script/build_and_run.sh",
     "macos:package": "./script/package_dmg.sh",
+    "linux:package": "./script/package_linux.sh",
+    "windows:package": "pwsh ./script/package_windows.ps1",
     "eval:protocol": "tsx scripts/protocol-model-eval.ts",
     "site:dev": "tsx scripts/serve-site.ts",
     "login": "tsx src/cli/index.ts login",

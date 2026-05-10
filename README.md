@@ -71,6 +71,8 @@ npm run eval:protocol
 npm run macos:build
 npm run macos:run
 npm run macos:package
+npm run windows:package
+npm run linux:package
 npm run conduit -- session list
 npm run conduit -- daemon once
 npm run conduit -- daemon start
@@ -396,6 +398,8 @@ Working locally:
 - protocol model eval harness with live Google AI Studio runs
 - redacted diagnostic bundle API and bug-report entry points in the control
   panel, extension popup, and macOS menu-bar app
+- Windows and Linux preview packaging scaffolds with launchers and shared
+  desktop-shell contract
 - Vitest coverage for protocol parsing, session/nonce handling, policy,
   clipboard execution, extension transport queueing, deterministic agent-loop
   transcripts, app scaffolding, and CLI e2e flows
@@ -403,7 +407,7 @@ Working locally:
 Still not production-ready:
 
 - signed and notarized desktop release artifact
-- Windows and Linux desktop apps
+- native Windows and Linux tray/status apps beyond preview launchers
 - real auto-replacement updater
 - hosted release downloads
 - Windows/Linux native shell bug-report buttons and global error/crash capture
@@ -436,6 +440,17 @@ platform, service health, recent non-secret logs, last transport status, update
 manifest metadata, and failed action/approval IDs. It must not include clipboard
 contents, request payloads, file contents, session nonces, API keys, or secrets
 unless the user deliberately expands and approves those fields.
+
+Preview packaging scaffolds:
+
+```txt
+npm run windows:package
+npm run linux:package
+```
+
+The preview packages include launchers and platform metadata. They are not yet
+native tray/status apps; the required platform behavior lives in
+`platforms/desktop-shell-contract.md`.
 
 ## Web Presence
 

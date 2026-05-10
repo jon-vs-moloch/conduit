@@ -198,6 +198,13 @@ Current state:
   - extension popup links to the local bug-report surface
   - macOS menu-bar app has a Report Bug action and error alerts can open diagnostics
   - bundles redact session nonces, request payloads, file contents, API keys, environment variables, and secrets by default
+- Windows/Linux preview package scaffolds are implemented:
+  - `platforms/desktop-shell-contract.md`
+  - `script/package_windows.ps1`
+  - `script/package_linux.sh`
+  - Windows PowerShell launchers for control, listener, daemon, open control, and report bug
+  - Linux launcher scripts and `.desktop` metadata for control and report bug
+  - native tray/status shells remain the next platform app step
 
 Verification commands:
 
