@@ -44,11 +44,20 @@ npm run macos:package
 ```
 
 That creates `dist/macos/Conduit.dmg` and
-`dist/macos/Conduit.dmg.sha256`. The DMG contains `Conduit.app`, an
-`Applications` shortcut, and first-launch notes. This preview package is not
-signed or notarized, so macOS may require right-click **Open** on first launch.
+`dist/macos/Conduit.dmg.sha256`, plus `dist/macos/conduit-appcast.json` and
+`dist/macos/RELEASE_NOTES.txt` for the download page and update checker. The DMG
+contains `Conduit.app`, an `Applications` shortcut, and first-launch notes. This
+preview package is not signed or notarized, so macOS may require right-click
+**Open** on first launch.
 If `dist/macos/Conduit.app` is already staged and SwiftPM is temporarily broken,
 `npm run macos:package -- --skip-build` packages the existing app bundle.
+
+Release metadata can be pointed at hosted artifacts without changing the local
+build:
+
+```txt
+CONDUIT_RELEASE_BASE_URL="https://github.com/jon-vs-moloch/conduit/releases/download/v0.0.1" npm run macos:package
+```
 
 ## Common Commands
 

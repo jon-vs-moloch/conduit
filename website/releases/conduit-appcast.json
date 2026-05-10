@@ -7,8 +7,9 @@
   "artifacts": [
     {
       "platform": "macos-universal",
-      "url": "https://example.invalid/conduit/releases/0.0.1/Conduit.dmg",
-      "sha256": "local-preview-placeholder",
+      "url": "https://github.com/jon-vs-moloch/conduit/releases/download/v0.0.1/Conduit.dmg",
+      "sha256": "local-preview-sha256-published-with-release",
+      "sizeBytes": 0,
       "signature": null
     }
   ]

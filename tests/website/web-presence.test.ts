@@ -43,6 +43,16 @@ describe('web presence', () => {
     expect(api).toContain('clipboard buffer itself cannot include that prose');
     expect(api).toContain('Duplicate JSON keys');
   });
+
+  it('keeps the download page focused on the polished app install path', async () => {
+    const download = await readWebsiteFile('download.html');
+    expect(download).toContain('Download for macOS');
+    expect(download).toContain('Conduit.dmg');
+    expect(download).toContain('drag <code>Conduit.app</code> to Applications');
+    expect(download).toContain('browser extension only if you want paired ChatGPT transport');
+    expect(download).toContain('Build From Source');
+    expect(download).toContain('Windows and Linux');
+  });
 });
 
 async function readWebsiteFile(file: string): Promise<string> {

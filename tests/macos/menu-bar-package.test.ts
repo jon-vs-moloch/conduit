@@ -75,6 +75,11 @@ describe('macOS menu-bar package scaffold', () => {
     expect(packageScript).toContain('shasum -a 256');
     expect(packageScript).toContain('conduit-appcast.json');
     expect(packageScript).toContain('CONDUIT_DMG_SHA256');
+    expect(packageScript).toContain('CONDUIT_RELEASE_ARTIFACT_URL');
+    expect(packageScript).toContain('CONDUIT_RELEASE_BASE_URL');
+    expect(packageScript).toContain('CONDUIT_RELEASE_CHANNEL');
+    expect(packageScript).toContain('CONDUIT_DMG_SIZE_BYTES');
+    expect(packageScript).toContain('RELEASE_NOTES.txt');
     expect(packageScript).toContain("new URL('file://' + process.argv[1]).href");
     expect(packageScript).toContain('Local preview DMG generated from this checkout');
   });
@@ -89,7 +94,8 @@ describe('macOS menu-bar package scaffold', () => {
     });
     expect(manifest.artifacts[0]).toMatchObject({
       platform: 'macos-universal',
-      sha256: 'local-preview-placeholder'
+      sha256: 'local-preview-sha256-published-with-release',
+      sizeBytes: 0
     });
     expect(manifest.artifacts[0].url).toContain('Conduit.dmg');
   });

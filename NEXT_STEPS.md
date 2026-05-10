@@ -136,7 +136,11 @@ Current state:
   - required page existence, local link integrity, and public API security copy
 - macOS package scaffold coverage is implemented:
   - `tests/macos/menu-bar-package.test.ts`
-  - SwiftPM package layout, build script, Codex Run action, and update manifest shape
+  - SwiftPM package layout, build script, Codex Run action, release metadata knobs, and update manifest shape
+- Installer/download polish is implemented:
+  - `script/package_dmg.sh` emits a DMG, SHA-256 file, appcast JSON, and release notes
+  - release artifact URLs can be supplied with `CONDUIT_RELEASE_ARTIFACT_URL` or `CONDUIT_RELEASE_BASE_URL`
+  - `website/download.html` presents the DMG as the primary install path, with source build as the development fallback
 - Agent-loop handshake generation is implemented:
   - `src/protocol/render-agent-handshake.ts`
   - `POST /api/agent-handshake`
@@ -190,13 +194,11 @@ npm run spike
 npm run macos:build
 ```
 
-Known-good verification from the latest bridge recovery/UI pass:
+Known-good verification from the latest packaging/download polish pass:
 
 ```txt
 npm run build  # passed
-npm test       # passed, 29 files / 132 tests
-npm run macos:build # passed
-npm run doctor # passed
+npm test       # passed, 29 files / 136 tests
 ```
 
 ## Completed Gate: GitHub Repository

@@ -19,30 +19,47 @@
   </header>
   <main class="page">
     <h1>Download Conduit</h1>
-    <p class="lead">Conduit has a local macOS menu-bar preview now. The signed release artifact is still delayed, but the app wrapper can already supervise the control app, browser bridge, and clipboard daemon from a source checkout.</p>
-    <pre class="code">npm install
-npm run build
-npm run macos:package
-open dist/macos/Conduit.dmg</pre>
+    <p class="lead">The v0 install path is a macOS app: download the DMG, drag Conduit into Applications, then launch it from the menu bar. The first public build is unsigned while Apple notarization is delayed, but it already supervises the control app, browser bridge, and clipboard daemon.</p>
+    <div class="actions">
+      <a class="button primary" href="https://github.com/jon-vs-moloch/conduit/releases">Download for macOS</a>
+      <a class="button" href="https://github.com/jon-vs-moloch/conduit">Source and checksums</a>
+    </div>
     <div class="callout">
-      <p>The preview DMG contains <code>Conduit.app</code>, an <code>Applications</code> shortcut, and install notes. It is intentionally unsigned for now, so macOS may require right-click <strong>Open</strong> on first launch.</p>
+      <p>The preview DMG contains <code>Conduit.app</code>, an <code>Applications</code> shortcut, release notes, and first-launch guidance. On the first unsigned build, macOS may require right-click <strong>Open</strong> before it will launch.</p>
     </div>
     <div class="callout">
       <p>Do not enable embedded-block parsing for normal clipboard use. Compliance mode should remain exact-envelope-only unless you are deliberately testing an unsafe profile.</p>
     </div>
     <section class="grid" aria-label="Download status">
       <article class="card">
-        <h3>Current channel</h3>
-        <p>Source checkout plus unsigned local DMG. The CLI, daemon, control app, browser bridge, and macOS menu-bar preview are available now.</p>
+        <h3>macOS app</h3>
+        <p>The desktop app is the main install. It starts local services, shows approvals, copies agent handshakes, checks updates, and stops supervised processes when you quit.</p>
       </article>
       <article class="card">
-        <h3>Next channel</h3>
-        <p>Signed and notarized macOS package with real release artifacts, hosted downloads, and production update metadata.</p>
+        <h3>Browser extension</h3>
+        <p>The extension is optional for clipboard-only use. Install it when you want ChatGPT agent-loop transport, protocol-block presentation, and copy-only-block affordances.</p>
       </article>
       <article class="card">
-        <h3>State directory</h3>
-        <p>Runtime state lives in <code>~/.conduit</code>, or <code>CONDUIT_STATE_DIR</code> for tests and isolated runs.</p>
+        <h3>Windows and Linux</h3>
+        <p>Those builds are planned after macOS packaging settles. The runtime is TypeScript, but the polished native approval shell comes first.</p>
       </article>
+    </section>
+    <section class="download-steps" aria-label="Install steps">
+      <h2>Install</h2>
+      <ol>
+        <li>Download <code>Conduit.dmg</code> from the latest GitHub release.</li>
+        <li>Open the DMG and drag <code>Conduit.app</code> to Applications.</li>
+        <li>Launch Conduit, then choose <strong>Open Control Panel</strong> from the menu-bar icon.</li>
+        <li>Install the browser extension only if you want paired ChatGPT transport.</li>
+      </ol>
+    </section>
+    <section class="download-steps" aria-label="Build from source">
+      <h2>Build From Source</h2>
+      <p>The source checkout remains the development path and can generate the same local DMG package.</p>
+      <pre class="code">npm install
+npm run build
+npm run macos:package
+open dist/macos/Conduit.dmg</pre>
     </section>
   </main>
   <footer class="footer">Conduit v0 is local-first and intentionally conservative by default.</footer>
