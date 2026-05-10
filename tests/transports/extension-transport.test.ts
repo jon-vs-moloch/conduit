@@ -240,6 +240,15 @@ describe('ExtensionTransport', () => {
   });
 
   it('extends the progress timeout when the extension keeps reporting send progress', async () => {
+    await transport.close();
+    transport = new ExtensionTransport({
+      port: 0,
+      sendResultTimeoutMs: 200,
+      sendProgressTimeoutMs: 40,
+      sendRetryDelaysMs: [10, 20]
+    });
+    await transport.open();
+
     const send = transport.sendMessage('hello ChatGPT');
 
     const response = await fetch(`${transport.getBaseUrl()}/api/conduit-outbound`);

@@ -843,8 +843,14 @@ final class UpdateChecker {
         }
 
         let localManifest = URL(fileURLWithPath: RepoLocator.repoRoot())
+            .appendingPathComponent("dist/macos/conduit-appcast.json")
+        if FileManager.default.fileExists(atPath: localManifest.path) {
+            return localManifest
+        }
+
+        let previewManifest = URL(fileURLWithPath: RepoLocator.repoRoot())
             .appendingPathComponent("website/releases/conduit-appcast.json")
-        return localManifest
+        return previewManifest
     }
 
     private func compareVersions(_ lhs: String, _ rhs: String) -> ComparisonResult {

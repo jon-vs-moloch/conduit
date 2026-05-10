@@ -9,6 +9,7 @@ APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 DMG_ROOT="$DIST_DIR/dmg-root"
 DMG_PATH="$DIST_DIR/$DMG_FILENAME"
 CHECKSUM_PATH="$DMG_PATH.sha256"
+APPCAST_PATH="$DIST_DIR/conduit-appcast.json"
 VOLUME_NAME="${CONDUIT_DMG_VOLUME_NAME:-Conduit}"
 MODE="${1:-}"
 
@@ -34,7 +35,7 @@ case "$MODE" in
     ;;
 esac
 
-rm -rf "$DMG_ROOT" "$DMG_PATH" "$CHECKSUM_PATH"
+rm -rf "$DMG_ROOT" "$DMG_PATH" "$CHECKSUM_PATH" "$APPCAST_PATH"
 mkdir -p "$DMG_ROOT"
 
 /usr/bin/ditto "$APP_BUNDLE" "$DMG_ROOT/$APP_NAME.app"
@@ -62,6 +63,36 @@ hdiutil create \
   "$DMG_PATH"
 
 shasum -a 256 "$DMG_PATH" > "$CHECKSUM_PATH"
+DMG_SHA256="$(awk '{print $1}' "$CHECKSUM_PATH")"
+
+CONDUIT_VERSION="$(node -e "console.log(require('$ROOT/package.json').version)")"
+CONDUIT_DMG_URL="$(node -e "console.log(new URL('file://' + process.argv[1]).href)" "$DMG_PATH")"
+CONDUIT_PUBLISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+CONDUIT_VERSION="$CONDUIT_VERSION" \
+CONDUIT_DMG_URL="$CONDUIT_DMG_URL" \
+CONDUIT_DMG_SHA256="$DMG_SHA256" \
+CONDUIT_PUBLISHED_AT="$CONDUIT_PUBLISHED_AT" \
+node <<'NODE' > "$APPCAST_PATH"
+const manifest = {
+  schema: 'conduit.update-manifest.v1',
+  version: process.env.CONDUIT_VERSION,
+  channel: 'local-preview',
+  publishedAt: process.env.CONDUIT_PUBLISHED_AT,
+  releaseNotes: 'Local preview DMG generated from this checkout. This artifact is unsigned and not notarized.',
+  artifacts: [
+    {
+      platform: 'macos-universal',
+      url: process.env.CONDUIT_DMG_URL,
+      sha256: process.env.CONDUIT_DMG_SHA256,
+      signature: null
+    }
+  ]
+};
+
+process.stdout.write(`${JSON.stringify(manifest, null, 2)}\n`);
+NODE
 
 echo "Created $DMG_PATH"
 echo "Wrote $CHECKSUM_PATH"
+echo "Wrote $APPCAST_PATH"

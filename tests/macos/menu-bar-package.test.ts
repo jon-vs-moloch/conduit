@@ -50,6 +50,8 @@ describe('macOS menu-bar package scaffold', () => {
     expect(main).toContain('/opt/homebrew/bin');
     expect(main).toContain('CONDUIT_UPDATE_MANIFEST_URL');
     expect(main).toContain('CONDUIT_REPO_ROOT');
+    expect(main).toContain('dist/macos/conduit-appcast.json');
+    expect(main).toContain('website/releases/conduit-appcast.json');
 
     const script = await readText('script/build_and_run.sh');
     expect(script).toContain('SWIFT_BUILD_DIR="${CONDUIT_SWIFT_BUILD_DIR:-${TMPDIR:-/tmp}/conduit-menubar-build}"');
@@ -66,6 +68,10 @@ describe('macOS menu-bar package scaffold', () => {
     expect(packageScript).toContain('ln -s /Applications');
     expect(packageScript).toContain('README.txt');
     expect(packageScript).toContain('shasum -a 256');
+    expect(packageScript).toContain('conduit-appcast.json');
+    expect(packageScript).toContain('CONDUIT_DMG_SHA256');
+    expect(packageScript).toContain("new URL('file://' + process.argv[1]).href");
+    expect(packageScript).toContain('Local preview DMG generated from this checkout');
   });
 
   it('ships a local update manifest with release-artifact metadata', async () => {
