@@ -7,6 +7,7 @@ const elements = {
   lastTab: document.getElementById('lastTab'),
   lastSend: document.getElementById('lastSend'),
   lastError: document.getElementById('lastError'),
+  desktopPanel: document.getElementById('desktopPanel'),
   attentionPanel: document.getElementById('attentionPanel'),
   attentionTitle: document.getElementById('attentionTitle'),
   attentionText: document.getElementById('attentionText'),
@@ -38,12 +39,14 @@ async function refresh() {
     elements.lastTab.textContent = 'Bridge server not reachable';
     elements.lastSend.textContent = '-';
     elements.lastError.textContent = error instanceof Error ? error.message : String(error);
+    elements.desktopPanel.classList.remove('hidden');
     elements.attentionPanel.classList.add('hidden');
     elements.attentionPanel.classList.remove('attention');
   }
 }
 
 function render(health) {
+  elements.desktopPanel.classList.add('hidden');
   const needsAttention = health.lastTransportError?.needsAttention === true || health.attentionOutbound > 0;
   const canRetry = bridgeCanRetry(health);
   const tabAvailable = health.tabAvailability?.status === 'ready';

@@ -6,6 +6,7 @@ let lastObservedText = '';
 
 const SEND_MAX_ATTEMPTS = 5;
 const SEND_RETRY_DELAYS_MS = [500, 1000, 2000, 4000, 8000];
+const PRESENTATION_KINDS = ['conduit', 'conduit-call', 'conduit-final', 'conduit-handshake-request'];
 
 const observer = new MutationObserver(() => {
   scheduleScan();
@@ -46,6 +47,7 @@ function scanLatestAssistantMessage() {
 
   const latestAssistant = findLatestAssistantMessage();
   if (!latestAssistant) return;
+  decorateProtocolBlocks(latestAssistant);
 
   const text = latestAssistant.innerText || '';
   if (!text || text === lastObservedText) return;
@@ -173,6 +175,147 @@ function extractProtocolBlocks(text) {
     ...extractLegacyBlocks(text, 'legacy-actions', '<<<ACTIONS_JSON', 'ACTIONS_JSON>>>'),
     ...extractLegacyBlocks(text, 'legacy-final', '<<<FINAL_JSON', 'FINAL_JSON>>>')
   ]);
+}
+
+function decorateProtocolBlocks(root = document) {
+  ensurePresentationStyles();
+  const candidates = [
+    ...root.querySelectorAll('pre'),
+    ...root.querySelectorAll('code')
+  ];
+
+  for (const element of candidates) {
+    const text = getElementText(element).trim();
+    const kind = protocolPresentationKind(text, element);
+    if (!kind) continue;
+
+    const container = findProtocolBlockContainer(element);
+    if (!container || container.dataset.conduitProtocolPresented === 'true') continue;
+    container.dataset.conduitProtocolPresented = 'true';
+    container.classList.add('conduit-protocol-block');
+
+    const header = document.createElement('div');
+    header.className = 'conduit-protocol-header';
+
+    const label = document.createElement('span');
+    label.className = 'conduit-protocol-title';
+    label.textContent = protocolPresentationTitle(kind);
+
+    const status = document.createElement('span');
+    status.className = 'conduit-protocol-status';
+    status.textContent = 'Local execution requires Conduit desktop';
+
+    const copyButton = document.createElement('button');
+    copyButton.type = 'button';
+    copyButton.className = 'conduit-protocol-copy';
+    copyButton.textContent = 'Copy block';
+    copyButton.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const copied = await copyProtocolText(text);
+      copyButton.textContent = copied ? 'Copied' : 'Copy failed';
+      setTimeout(() => {
+        copyButton.textContent = 'Copy block';
+      }, 1600);
+    });
+
+    header.append(label, status, copyButton);
+    container.prepend(header);
+  }
+}
+
+function protocolPresentationKind(text, element) {
+  const languageClass = [...(element.classList || [])]
+    .find((className) => className.startsWith('language-'))
+    ?.slice('language-'.length);
+  if (PRESENTATION_KINDS.includes(languageClass)) return languageClass;
+
+  const firstLine = text.split('\n')[0]?.trim().toLowerCase();
+  if (PRESENTATION_KINDS.includes(firstLine)) return firstLine;
+
+  const fence = text.match(/^```[ \t]*(?:json[ \t]+)?(conduit-call|conduit-final|conduit-handshake-request|conduit)(?:[ \t]+json)?\b/i);
+  return fence?.[1]?.toLowerCase() || '';
+}
+
+function protocolPresentationTitle(kind) {
+  if (kind === 'conduit-final') return 'Conduit final result';
+  if (kind === 'conduit-handshake-request') return 'Conduit handshake request';
+  if (kind === 'conduit-call') return 'Conduit agent call';
+  return 'Conduit request';
+}
+
+function findProtocolBlockContainer(element) {
+  return element.closest('pre') || element;
+}
+
+async function copyProtocolText(text) {
+  const normalized = text.trim();
+  try {
+    await navigator.clipboard.writeText(normalized);
+    return true;
+  } catch {
+    return copyProtocolTextFallback(normalized);
+  }
+}
+
+function copyProtocolTextFallback(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  return copied;
+}
+
+function ensurePresentationStyles() {
+  if (document.getElementById('conduit-protocol-presentation-style')) return;
+  const style = document.createElement('style');
+  style.id = 'conduit-protocol-presentation-style';
+  style.textContent = `
+    .conduit-protocol-block {
+      border: 1px solid #2dd4bf !important;
+      border-radius: 10px !important;
+      overflow: hidden !important;
+      box-shadow: 0 10px 30px rgba(15, 118, 110, 0.10) !important;
+    }
+    .conduit-protocol-header {
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+      padding: 8px 10px !important;
+      background: linear-gradient(90deg, #042f2e, #0f766e) !important;
+      color: #ecfeff !important;
+      font: 12px/1.3 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+    }
+    .conduit-protocol-title {
+      font-weight: 700 !important;
+      letter-spacing: 0 !important;
+      white-space: nowrap !important;
+    }
+    .conduit-protocol-status {
+      flex: 1 !important;
+      min-width: 0 !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+      color: #ccfbf1 !important;
+    }
+    .conduit-protocol-copy {
+      border: 1px solid rgba(204, 251, 241, 0.55) !important;
+      border-radius: 7px !important;
+      padding: 4px 8px !important;
+      background: rgba(255, 255, 255, 0.10) !important;
+      color: #ffffff !important;
+      cursor: pointer !important;
+      font: inherit !important;
+      white-space: nowrap !important;
+    }
+  `;
+  document.documentElement.append(style);
 }
 
 function extractNamedBlocks(text) {

@@ -117,12 +117,18 @@ describe('macOS menu-bar package scaffold', () => {
     expect(content).toContain('getRuntimeLastError');
     expect(content).toContain('scheduleOutboundPoll');
     expect(content).toContain('Extension context invalidated');
+    expect(content).toContain('decorateProtocolBlocks');
+    expect(content).toContain('conduit-protocol-header');
+    expect(content).toContain('Local execution requires Conduit desktop');
     expect(popup).toContain('/api/conduit-retry');
     expect(popup).toContain('attentionOutboundIds');
     expect(popup).toContain('Retry available');
     expect(popup).toContain('bridgeCanRetry');
     expect(popup).toContain('tabAvailabilityLabel');
     expect(popup).toContain('unavailable');
+    const popupHtml = await readText('extension/popup.html');
+    expect(popupHtml).toContain('Desktop app not connected');
+    expect(popupHtml).toContain('https://github.com/jon-vs-moloch/conduit');
   });
 
   it('exposes package scripts and a Codex run action for local launch', async () => {

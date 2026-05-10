@@ -6,6 +6,7 @@ The extension does not bypass auth, solve verification challenges, extract cooki
 
 ## Current Capabilities (Spike Phase)
 - Injects a content script into `https://chatgpt.com/*`.
+- Decorates visible Conduit protocol code blocks with a distinct header and a copy-only-block button.
 - Observes visible assistant messages for `conduit`, `conduit-call`, `conduit-final`, and `conduit-handshake-request` code blocks.
 - Keeps legacy `<<<ACTIONS_JSON` and `<<<FINAL_JSON` support for compatibility.
 - De-duplicates protocol blocks across DOM updates.
@@ -13,6 +14,9 @@ The extension does not bypass auth, solve verification challenges, extract cooki
 - Forwards the payload via `POST` to `http://127.0.0.1:3333/api/conduit-call`.
 - Polls `http://127.0.0.1:3333/api/conduit-outbound` for harness messages to send back into ChatGPT.
 - Reports content-script heartbeat status to `http://127.0.0.1:3333/api/conduit-tab-status`.
+- Shows an extension-only fallback in the popup when the local desktop app/listener is not reachable.
+
+Extension-only mode is intentionally non-executing. It can make Conduit blocks easier to recognize and copy, but local execution and approval require the Conduit desktop app and daemon.
 
 ## How to Install (Unpacked)
 1. Open Google Chrome or Brave.
@@ -51,6 +55,7 @@ Lifecycle:
 ## Current Hardening Notes
 
 - The content script uses both `MutationObserver` and periodic scans.
+- Browser-side block presentation is cosmetic/copy-only; it is not a consent boundary.
 - The runtime queues inbound protocol blocks even if they arrive before `waitForAssistantTurn`.
 - The runtime queues outbound messages until the extension polls.
 - Outbound messages include a visible `Conduit transport id: out-N` marker.

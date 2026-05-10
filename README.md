@@ -94,6 +94,11 @@ Load the development extension:
 5. Select the `extension/` directory from this repository checkout.
 6. Reload the ChatGPT tab after each extension code change.
 
+If the desktop app or local listener is not running, the extension still acts as
+a browser-side helper: it can highlight Conduit protocol blocks, provide a
+copy-only-block affordance, and point the user to Conduit. It must not approve
+or execute local actions by itself.
+
 Start Conduit with the menu-bar app, then choose:
 
 ```txt
@@ -342,6 +347,7 @@ Working locally:
 - review records for untrusted exact clipboard envelopes
 - local update-manifest check path
 - Chrome/Brave unpacked extension bridge
+- extension-only protocol block presentation and copy affordance
 - deterministic agent-loop transcript harness
 - paired-session nonce enforcement for extension agent loops
 - agent-initiated handshake request rejection/repair path
