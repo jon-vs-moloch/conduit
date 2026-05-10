@@ -16,6 +16,7 @@ import {
   resolveApprovalRequest
 } from '../approvals/approval-store.js';
 import { executeApprovedReview } from '../daemon/execute-request.js';
+import { createDiagnosticBundle } from '../diagnostics/diagnostic-bundle.js';
 
 export interface ControlPanelOptions {
   host?: string;
@@ -94,6 +95,20 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
           sessions: true,
           runs: true
         }
+      });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/diagnostics') {
+      sendJson(res, 200, {
+        bundle: await createDiagnosticBundle({
+          services: {
+            controlPanel: {
+              status: 'ok',
+              port: req.socket.localPort
+            }
+          }
+        })
       });
       return;
     }
@@ -377,6 +392,7 @@ function renderAppHtml(): string {
         <button data-view="sessions">Sessions</button>
         <button data-view="approvals">Approvals</button>
         <button data-view="runs">Runs</button>
+        <button data-view="diagnostics">Bug Report</button>
       </nav>
     </aside>
     <main>
@@ -387,6 +403,7 @@ function renderAppHtml(): string {
         </div>
         <div class="toolbar">
           <button class="btn" id="refresh">Refresh</button>
+          <button class="btn" id="reportBug">Report Bug</button>
           <button class="btn" id="copyHandshake">Copy Agent Handshake</button>
           <button class="btn primary" id="checkClipboard">Check Clipboard Once</button>
         </div>
@@ -448,6 +465,18 @@ function renderAppHtml(): string {
         <div class="panel hidden" id="resultPanel">
           <div class="panel-head"><h2>Result</h2></div>
           <div class="panel-body"><pre id="runResult"></pre></div>
+        </div>
+      </section>
+      <section id="diagnosticsView" class="hidden">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Bug Report</h2>
+            <button class="btn primary" id="copyDiagnostics">Copy Diagnostics</button>
+          </div>
+          <div class="panel-body">
+            <p class="subtle">Preview the redacted diagnostic bundle before attaching it to a report. It excludes clipboard contents, request payloads, file contents, session nonces, API keys, environment variables, and credentials by default.</p>
+            <pre id="diagnosticsJson">{}</pre>
+          </div>
         </div>
       </section>
       <div class="status-line" id="appStatus"></div>
@@ -634,7 +663,7 @@ function renderRuns() {
 
 function setView(view) {
   state.view = view;
-  for (const id of ['overview', 'sessions', 'approvals', 'runs']) {
+  for (const id of ['overview', 'sessions', 'approvals', 'runs', 'diagnostics']) {
     $(id + 'View').classList.toggle('hidden', id !== view);
     document.querySelector('[data-view="' + id + '"]').classList.toggle('active', id === view);
   }
@@ -646,7 +675,7 @@ function setView(view) {
 
 function initialView() {
   const hash = location.hash.replace(/^#/, '');
-  return ['overview', 'sessions', 'approvals', 'runs'].includes(hash) ? hash : 'overview';
+  return ['overview', 'sessions', 'approvals', 'runs', 'diagnostics'].includes(hash) ? hash : 'overview';
 }
 
 document.addEventListener('click', async (event) => {
@@ -689,6 +718,15 @@ document.addEventListener('click', async (event) => {
 });
 
 $('refresh').addEventListener('click', () => refresh().catch((error) => setStatus(error.message)));
+$('reportBug').addEventListener('click', async () => {
+  setView('diagnostics');
+  await loadDiagnostics();
+});
+$('copyDiagnostics').addEventListener('click', async () => {
+  await loadDiagnostics();
+  await navigator.clipboard.writeText($('diagnosticsJson').textContent);
+  setStatus('Redacted diagnostics copied.');
+});
 $('checkClipboard').addEventListener('click', async () => {
   setStatus('Checking clipboard...');
   const result = await api('/api/clipboard/check', { method: 'POST' });
@@ -734,6 +772,11 @@ $('createSession').addEventListener('submit', async (event) => {
   $('starterPanel').classList.remove('hidden');
   await refresh();
 });
+
+async function loadDiagnostics() {
+  const data = await api('/api/diagnostics');
+  $('diagnosticsJson').textContent = JSON.stringify(data.bundle, null, 2);
+}
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({

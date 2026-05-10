@@ -394,6 +394,8 @@ Working locally:
 - local run logs
 - policy-routed local tools
 - protocol model eval harness with live Google AI Studio runs
+- redacted diagnostic bundle API and bug-report entry points in the control
+  panel and extension popup
 - Vitest coverage for protocol parsing, session/nonce handling, policy,
   clipboard execution, extension transport queueing, deterministic agent-loop
   transcripts, app scaffolding, and CLI e2e flows
@@ -404,9 +406,8 @@ Still not production-ready:
 - Windows and Linux desktop apps
 - real auto-replacement updater
 - hosted release downloads
-- in-app bug report buttons and diagnostic bundle export
-- global error/crash capture across desktop shells, daemon, listener, extension,
-  and control panel
+- native shell bug-report buttons and global error/crash capture across desktop
+  shells, daemon, listener, extension, and control panel
 - paid trust-analysis service that can explain requested code/actions before execution
 - sandboxed dry-run/test evidence for higher-risk requests
 - robust tab discard/throttle detection

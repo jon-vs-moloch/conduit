@@ -192,6 +192,11 @@ Current state:
   - each shell should expose the same consent/health/reporting surface
   - bug report buttons belong in the desktop app, control panel, extension popup, and error screens
   - reports should include non-secret diagnostics and never silently attach clipboard contents, request payloads, nonces, API keys, or file contents
+- Redacted diagnostic bundle API is implemented:
+  - `GET /api/diagnostics`
+  - control panel `#diagnostics` bug-report preview
+  - extension popup links to the local bug-report surface
+  - bundles redact session nonces, request payloads, file contents, API keys, environment variables, and secrets by default
 
 Verification commands:
 

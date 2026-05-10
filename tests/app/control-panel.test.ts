@@ -38,9 +38,12 @@ describe('control panel app', () => {
     expect(html).toContain('Conduit Control');
     expect(html).toContain('Extension Bridge');
     expect(html).toContain('Retry Outbound');
+    expect(html).toContain('Report Bug');
+    expect(html).toContain('diagnosticsView');
     const script = await fetchText(`${app.url}/app.js`);
     expect(script).toContain('initialView');
     expect(script).toContain("location.hash");
+    expect(script).toContain('/api/diagnostics');
     expect(script).toContain('Untrusted Conduit request');
     expect(script).toContain('Approve once runs under read-only local policy');
     expect(script).toContain('Declared permissions');
@@ -56,6 +59,53 @@ describe('control panel app', () => {
         approvals: true
       }
     });
+  });
+
+  it('serves a redacted diagnostic bundle for bug reports', async () => {
+    const session = await createSession({
+      label: 'Diagnostics',
+      permissionProfile: 'read-only',
+      allowedRoots: [projectRoot],
+      transport: 'clipboard'
+    });
+    await createApprovalRequest({
+      action: {
+        id: 'write_notes',
+        tool: 'file.write',
+        args: {
+          path: 'notes.txt',
+          content: 'do not include this file content',
+          nonce: 'call_should_not_leak'
+        },
+        reason: 'Persist notes.',
+        risk: 'high'
+      },
+      policyReason: 'Tool requires confirmation: file.write',
+      prompt: 'Allow?'
+    });
+
+    const diagnostics = await fetchJson(`${app.url}/api/diagnostics`);
+    expect(diagnostics.bundle).toMatchObject({
+      schema: 'conduit.diagnostic-bundle.v1',
+      app: {
+        version: '0.0.1'
+      },
+      state: {
+        redaction: {
+          excludesClipboardContents: true,
+          excludesRequestPayloads: true,
+          excludesSessionNonces: true,
+          excludesApiKeys: true
+        }
+      }
+    });
+    expect(diagnostics.bundle.sessions[0]).toMatchObject({
+      sessionId: session.sessionId,
+      hasCurrentNonce: true
+    });
+    expect(JSON.stringify(diagnostics.bundle)).not.toContain(session.currentNonce);
+    expect(JSON.stringify(diagnostics.bundle)).not.toContain('do not include this file content');
+    expect(JSON.stringify(diagnostics.bundle)).not.toContain('call_should_not_leak');
   });
 
   it('creates and revokes sessions through the API', async () => {
