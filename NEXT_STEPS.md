@@ -187,6 +187,11 @@ Current state:
   - optional LLM review explains requested code/actions before execution
   - higher-risk approvals may include sandboxed dry-run or test evidence
   - sandboxing remains a core roadmap feature, not a substitute for local consent
+- Cross-platform desktop primer is planned:
+  - macOS is the first working shell, but Windows and Linux desktop apps are v0 product targets
+  - each shell should expose the same consent/health/reporting surface
+  - bug report buttons belong in the desktop app, control panel, extension popup, and error screens
+  - reports should include non-secret diagnostics and never silently attach clipboard contents, request payloads, nonces, API keys, or file contents
 
 Verification commands:
 
@@ -517,7 +522,9 @@ Recommended scope:
 
 ```txt
 app/
-  signed native menu-bar app
+  macOS menu-bar app
+  Windows tray app
+  Linux tray/status app
 ```
 
 The app should own consent and visibility:
@@ -530,12 +537,20 @@ The app should own consent and visibility:
 - signed/notarized distribution and real update replacement
 - copy/view latest result
 - settings for clipboard watcher polling and exact-envelope behavior
+- bug report button with redacted diagnostic bundle preview
+- top-level error catcher that routes crashes, service failures, update errors,
+  extension bridge failures, and approval execution failures to logs and the
+  report flow
+- platform-specific install/update affordances:
+  - macOS: DMG/app bundle first, signing/notarization later
+  - Windows: installer or portable app plus tray shell
+  - Linux: AppImage/deb/rpm or tarball plus tray/status shell
 
 Keep first release version modest:
 
 - no native extension pairing UI beyond showing status/token if needed
 - no marketplace/release-channel work
-- no broad installer story
+- no silent self-replacement without artifact hash/signature checks
 
 The app is the control/consent plane. The daemon owns execution. The CLI remains useful for scripting and tests.
 

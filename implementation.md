@@ -50,15 +50,20 @@ fs/promises
 execa or child_process
 ```
 
-For desktop app later:
+For desktop apps:
 
 ```txt
-Tauri
+macOS SwiftPM menu-bar shell
+Windows tray shell
+Linux tray/status shell
+Tauri or native wrappers if a shared shell becomes cheaper than per-platform UI
 ```
 
 Do not start with Electron unless needed.
 
-For v0, a CLI + menu-bar/Tauri shell is enough.
+For v0, a CLI plus desktop shells is the product shape. macOS is the first
+working shell, but Windows and Linux should become real apps rather than
+documentation-only ports.
 
 ---
 
@@ -1039,13 +1044,33 @@ open dist/macos/Conduit.app
 
 Production packaging still needs signing, notarization, signed update metadata, artifact hashing, and a replacement/rollback story.
 
-### 12.2 URL Handler
+### 12.2 Cross-Platform App Primer
+
+The app shell is the user's safety dashboard. Each supported platform should
+offer the same core controls even if the native packaging differs:
+
+- run state for the control app, clipboard daemon, and agent listener
+- pending approvals and native notifications
+- copy agent handshake
+- open control panel, logs, docs, and downloads
+- check for updates and open release artifacts only after hash/signature review
+- quit/minimize choice that makes supervised execution state explicit
+- report a bug with a redacted diagnostic bundle preview
+
+Bug reporting is part of the safety story. Every shell and browser surface
+should have a route to report failures, especially when Conduit is handling
+autonomous execution. Reports should include version, platform, service health,
+recent non-secret logs, last transport status, update metadata, and action/run
+IDs. Reports must not silently include clipboard contents, request payloads,
+file contents, session nonces, API keys, or secrets.
+
+### 12.3 URL Handler
 
 For Tauri, register `conduit://` custom protocol.
 
 For CLI-only v0, skip URL handler.
 
-### 12.3 Native Messaging
+### 12.4 Native Messaging
 
 Only needed for browser extension integration.
 

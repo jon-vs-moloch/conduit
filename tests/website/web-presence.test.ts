@@ -52,6 +52,8 @@ describe('web presence', () => {
     expect(download).toContain('browser extension only if you want paired ChatGPT transport');
     expect(download).toContain('Build From Source');
     expect(download).toContain('Windows and Linux');
+    expect(download).toContain('desktop app targets too');
+    expect(download).toContain('bug reports');
   });
 });
 

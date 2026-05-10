@@ -943,6 +943,46 @@ It owns:
 - update availability
 - panic switch
 - YOLO / Idiot Mode toggles
+- bug reporting and diagnostic export
+
+The desktop app SHOULD be implemented as real platform apps for supported
+operating systems. macOS may ship first, but Windows and Linux are product
+targets, not merely CLI compatibility targets. Each app SHOULD expose the same
+core safety controls: service health, approvals, sessions, logs, updates,
+panic/stop controls, and explicit quit/minimize behavior for supervised
+execution.
+
+### 15.2 Bug Reports And Error Capture
+
+Conduit SHOULD expose a **Report Bug** action from:
+
+- the desktop menu/tray app
+- the local control panel
+- browser extension popup
+- error and degraded-health screens
+
+Bug reports SHOULD start as a local diagnostic bundle preview. Users must be
+able to inspect what will be attached before it leaves the machine.
+
+Diagnostic bundles SHOULD include:
+
+- Conduit version and build channel
+- operating system and app shell
+- service health summary
+- recent non-secret logs
+- last transport and extension bridge status
+- update manifest metadata
+- run IDs, approval IDs, and action IDs related to the failure
+
+Diagnostic bundles MUST NOT silently include:
+
+- clipboard contents
+- full request payloads
+- file contents
+- session nonces
+- API keys
+- environment variables
+- credentials, tokens, or secret-looking values
 
 Confirmation-required actions SHOULD be represented as durable local approval
 requests visible in the app. The approval view SHOULD show at least:

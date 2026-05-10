@@ -393,6 +393,7 @@ Working locally:
 - local session store
 - local run logs
 - policy-routed local tools
+- protocol model eval harness with live Google AI Studio runs
 - Vitest coverage for protocol parsing, session/nonce handling, policy,
   clipboard execution, extension transport queueing, deterministic agent-loop
   transcripts, app scaffolding, and CLI e2e flows
@@ -400,12 +401,40 @@ Working locally:
 Still not production-ready:
 
 - signed and notarized desktop release artifact
+- Windows and Linux desktop apps
 - real auto-replacement updater
 - hosted release downloads
+- in-app bug report buttons and diagnostic bundle export
+- global error/crash capture across desktop shells, daemon, listener, extension,
+  and control panel
 - paid trust-analysis service that can explain requested code/actions before execution
 - sandboxed dry-run/test evidence for higher-risk requests
 - robust tab discard/throttle detection
 - comprehensive live ChatGPT extension tests
+
+## Cross-Platform Desktop Primer
+
+Conduit v0 should ship as a desktop app, not as a terminal ritual with a nice
+README. macOS is the first working shell, but Windows and Linux are product
+targets rather than vague future ports.
+
+Each platform app should provide the same consent surface:
+
+- start, stop, and health for the control app, agent listener, and clipboard
+  daemon
+- approval notifications and a visible pending-approval queue
+- copy agent handshake
+- open control panel, logs, downloads, and docs
+- check for updates and open verified release artifacts
+- quit confirmation that can stop supervised execution processes
+- a **Report Bug** action that attaches useful diagnostics without secrets
+
+Bug reporting should be available from the menu-bar/tray app, control panel,
+extension popup, and error screens. A useful report should include app version,
+platform, service health, recent non-secret logs, last transport status, update
+manifest metadata, and failed action/approval IDs. It must not include clipboard
+contents, request payloads, file contents, session nonces, API keys, or secrets
+unless the user deliberately expands and approves those fields.
 
 ## Web Presence
 
