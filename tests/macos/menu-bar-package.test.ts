@@ -121,6 +121,8 @@ describe('macOS menu-bar package scaffold', () => {
     expect(popup).toContain('attentionOutboundIds');
     expect(popup).toContain('Retry available');
     expect(popup).toContain('bridgeCanRetry');
+    expect(popup).toContain('tabAvailabilityLabel');
+    expect(popup).toContain('unavailable');
   });
 
   it('exposes package scripts and a Codex run action for local launch', async () => {

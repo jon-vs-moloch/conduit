@@ -5,12 +5,14 @@ const DEFAULT_PORT = 3333;
 const SEND_RESULT_TIMEOUT_MS = 300_000;
 const SEND_PROGRESS_TIMEOUT_MS = 90_000;
 const SEND_RETRY_DELAYS_MS = [5_000, 15_000, 30_000];
+const TAB_STATUS_STALE_MS = 30_000;
 
 export interface ExtensionTransportOptions {
   port?: number;
   sendResultTimeoutMs?: number;
   sendProgressTimeoutMs?: number;
   sendRetryDelaysMs?: number[];
+  tabStatusStaleMs?: number;
 }
 
 interface IncomingExtensionPayload {
@@ -198,8 +200,10 @@ export class ExtensionTransport implements ModelTransport {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
+      const tabAvailability = this.getTabAvailability();
       sendJson(res, 200, {
         status: 'ok',
+        tabAvailability,
         outboundQueued: this.outboundQueue.length,
         inboundQueued: this.inboundQueue.length,
         pendingPolls: this.pendingOutboundResponses.length,
@@ -549,6 +553,55 @@ export class ExtensionTransport implements ModelTransport {
       this.lastSendResult = this.lastTransportError;
       this.scheduleSendRetry(delivery, error, 'timeout');
     }, this.options.sendProgressTimeoutMs ?? SEND_PROGRESS_TIMEOUT_MS);
+  }
+
+  private getTabAvailability(): {
+    status: 'missing' | 'ready' | 'stale' | 'unavailable';
+    reason: string;
+    observedAt: string | null;
+  } {
+    const status = this.lastTabStatus as ExtensionTabStatusPayload | null;
+    if (!status || this.tabStatusCount === 0) {
+      return {
+        status: 'missing',
+        reason: 'No ChatGPT content-script heartbeat has reached the local bridge.',
+        observedAt: null
+      };
+    }
+
+    const observedAt = typeof status.observedAt === 'string' ? status.observedAt : null;
+    const statusText = typeof status.status === 'string' ? status.status : 'unknown';
+    const normalizedStatus = statusText.toLowerCase();
+    if (
+      normalizedStatus.includes('invalidated')
+      || normalizedStatus.includes('unavailable')
+      || normalizedStatus.includes('discarded')
+      || normalizedStatus.includes('no_eligible')
+    ) {
+      return {
+        status: 'unavailable',
+        reason: `ChatGPT tab reported ${statusText}.`,
+        observedAt
+      };
+    }
+
+    if (observedAt) {
+      const observedTime = Date.parse(observedAt);
+      const staleMs = this.options.tabStatusStaleMs ?? TAB_STATUS_STALE_MS;
+      if (Number.isFinite(observedTime) && Date.now() - observedTime > staleMs) {
+        return {
+          status: 'stale',
+          reason: `Last ChatGPT content-script heartbeat is older than ${staleMs}ms.`,
+          observedAt
+        };
+      }
+    }
+
+    return {
+      status: 'ready',
+      reason: `ChatGPT content script last reported ${statusText}.`,
+      observedAt
+    };
   }
 }
 

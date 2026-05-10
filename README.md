@@ -245,6 +245,8 @@ curl http://127.0.0.1:3333/health
 Useful fields:
 
 - `tabStatusCount`: whether a ChatGPT content script has reported in
+- `tabAvailability`: whether the latest ChatGPT tab is `ready`, `missing`,
+  `stale`, or explicitly `unavailable`, with a human-readable reason
 - `lastTabStatus`: latest tab heartbeat or outbound send stage
 - `outboundQueued`: messages waiting for the extension to pick up
 - `pendingPolls`: extension long-polls waiting for outbound messages
@@ -267,6 +269,10 @@ Service logs live in:
 
 If the extension appears enabled but `tabStatusCount` is `0`, reload the
 unpacked extension, then reload the ChatGPT tab.
+
+If `tabAvailability.status` is `stale` or `unavailable`, the bridge is up but
+the ChatGPT tab is not currently a reliable send target. Reload the ChatGPT tab
+or extension, then retry the outbound message if one is available.
 
 If `lastTabStatus.status` starts with `outbound_`, the content script is
 reporting its current browser-send stage, such as composer insertion, send

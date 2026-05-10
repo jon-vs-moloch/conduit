@@ -73,6 +73,10 @@ curl http://127.0.0.1:3333/health
 Interpretation:
 
 - `tabStatusCount === 0`: no ChatGPT content script has reported in. Reload the unpacked extension from `chrome://extensions/`, then reload the ChatGPT tab.
+- `tabAvailability.status === "missing"`: no tab heartbeat has reached the bridge yet.
+- `tabAvailability.status === "stale"`: the last heartbeat is too old; reload or focus the ChatGPT tab before retrying.
+- `tabAvailability.status === "unavailable"`: the latest tab status reported a known unusable state, such as an invalidated extension context.
+- `tabAvailability.status === "ready"`: the local listener has a fresh ChatGPT content-script heartbeat.
 - `lastTabStatus.url`: the latest ChatGPT tab that reported the content script alive.
 - `outboundQueued > 0`: the extension has not picked up the next harness message yet.
 - `deliveredOutboundCount` increased but `pendingSendResults > 0`: the content script has accepted an outbound message and is still trying to insert/send it. The listener can continue processing inbound protocol blocks while this confirmation remains pending.

@@ -149,7 +149,8 @@ Current state:
   - missing/invalid/replayed session data returns `CONDUIT_REPAIR_JSON`
   - `conduit-handshake-request` is detected but never auto-pairs; it asks for local user approval via Copy Agent Handshake
 - Extension bridge status/recovery is implemented:
-  - browser extension popup shows tab, outbound, retry, and error state from `/health`
+  - browser extension popup shows tab availability, outbound, retry, and error state from `/health`
+  - `/health` reports `tabAvailability` as `missing`, `ready`, `stale`, or `unavailable`
   - daemon retries failed or stalled outbounds with backoff
   - exhausted outbounds are retained as attention-required retry candidates
   - `/api/conduit-retry` manually requeues pending, retrying, or exhausted outbounds
@@ -174,7 +175,7 @@ Known-good verification from the latest bridge recovery/UI pass:
 
 ```txt
 npm run build  # passed
-npm test       # passed, 29 files / 130 tests
+npm test       # passed, 29 files / 132 tests
 npm run macos:build # passed
 npm run doctor # passed
 ```

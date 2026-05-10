@@ -46,6 +46,25 @@ describe('bridge retry candidate selection', () => {
 
     expect(bridgeCanRetry({})).toBe(false);
   });
+
+  it('labels ChatGPT tab availability for popup and control panel surfaces', async () => {
+    const popupScript = await readFile(path.resolve('extension/popup.js'), 'utf8');
+    const { tabAvailabilityLabel } = extractHelpers(popupScript, ['tabAvailabilityLabel']);
+    expect(tabAvailabilityLabel({ tabAvailability: { status: 'ready' } })).toBe('alive');
+    expect(tabAvailabilityLabel({ tabAvailability: { status: 'stale' } })).toBe('stale');
+    expect(tabAvailabilityLabel({ tabAvailability: { status: 'unavailable' } })).toBe('unavailable');
+    expect(tabAvailabilityLabel({})).toBe('missing');
+
+    const { bridgeAvailabilityText } = extractHelpers(renderAppJs(), ['bridgeAvailabilityText']);
+    expect(bridgeAvailabilityText({
+      tabAvailability: {
+        status: 'stale',
+        reason: 'Last ChatGPT content-script heartbeat is older than 30000ms.'
+      }
+    })).toBe('ChatGPT tab stale: Last ChatGPT content-script heartbeat is older than 30000ms.');
+    expect(bridgeAvailabilityText({ status: 'offline', error: 'connect ECONNREFUSED' }))
+      .toBe('Bridge offline: connect ECONNREFUSED');
+  });
 });
 
 function assertRetryPriority(selectRetryTransportId: (health: any) => string | undefined): void {

@@ -23,6 +23,11 @@ describe('ExtensionTransport', () => {
     expect(response.ok).toBe(true);
     await expect(response.json()).resolves.toMatchObject({
       status: 'ok',
+      tabAvailability: {
+        status: 'missing',
+        reason: 'No ChatGPT content-script heartbeat has reached the local bridge.',
+        observedAt: null
+      },
       deliveredOutboundCount: 0,
       receivedInboundCount: 0,
       pendingSendResults: 0,
@@ -35,20 +40,66 @@ describe('ExtensionTransport', () => {
   });
 
   it('records extension tab status heartbeats', async () => {
+    const observedAt = new Date().toISOString();
     await postJson(`${transport.getBaseUrl()}/api/conduit-tab-status`, {
       tabId: 42,
       url: 'https://chatgpt.com/c/test',
       status: 'content_script_alive',
-      observedAt: '2026-05-05T00:00:00.000Z'
+      observedAt
     });
 
     const response = await fetch(`${transport.getBaseUrl()}/health`);
     await expect(response.json()).resolves.toMatchObject({
+      tabAvailability: {
+        status: 'ready',
+        reason: 'ChatGPT content script last reported content_script_alive.',
+        observedAt
+      },
       tabStatusCount: 1,
       lastTabStatus: {
         tabId: 42,
         url: 'https://chatgpt.com/c/test',
         status: 'content_script_alive'
+      }
+    });
+  });
+
+  it('reports stale and unavailable ChatGPT tab availability', async () => {
+    await transport.close();
+    transport = new ExtensionTransport({
+      port: 0,
+      sendResultTimeoutMs: 75,
+      sendProgressTimeoutMs: 40,
+      sendRetryDelaysMs: [10, 20],
+      tabStatusStaleMs: 10
+    });
+    await transport.open();
+
+    await postJson(`${transport.getBaseUrl()}/api/conduit-tab-status`, {
+      tabId: 42,
+      status: 'content_script_alive',
+      observedAt: '2026-05-05T00:00:00.000Z'
+    });
+
+    const stale = await fetch(`${transport.getBaseUrl()}/health`);
+    await expect(stale.json()).resolves.toMatchObject({
+      tabAvailability: {
+        status: 'stale',
+        observedAt: '2026-05-05T00:00:00.000Z'
+      }
+    });
+
+    await postJson(`${transport.getBaseUrl()}/api/conduit-tab-status`, {
+      tabId: 42,
+      status: 'extension_context_invalidated',
+      observedAt: new Date().toISOString()
+    });
+
+    const unavailable = await fetch(`${transport.getBaseUrl()}/health`);
+    await expect(unavailable.json()).resolves.toMatchObject({
+      tabAvailability: {
+        status: 'unavailable',
+        reason: 'ChatGPT tab reported extension_context_invalidated.'
       }
     });
   });

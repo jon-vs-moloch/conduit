@@ -372,7 +372,10 @@ function renderAppHtml(): string {
             <h2>Extension Bridge</h2>
             <button class="btn" id="retryOutbound">Retry Outbound</button>
           </div>
-          <div class="panel-body"><pre id="bridgeJson">{}</pre></div>
+          <div class="panel-body">
+            <div class="status-line" id="bridgeAvailability">Checking bridge...</div>
+            <pre id="bridgeJson">{}</pre>
+          </div>
         </div>
       </section>
       <section id="sessionsView" class="hidden">
@@ -460,6 +463,7 @@ function render() {
   $('mode').textContent = state.status?.mode || 'Compliance';
   $('statusJson').textContent = JSON.stringify(state.status, null, 2);
   $('bridgeJson').textContent = JSON.stringify(state.bridge, null, 2);
+  $('bridgeAvailability').textContent = bridgeAvailabilityText(state.bridge);
   $('retryOutbound').disabled = !bridgeCanRetry(state.bridge);
   renderSessions();
   renderApprovals();
@@ -639,6 +643,13 @@ async function fetchBridgeRetry(transportId) {
 
 function bridgeCanRetry(bridge) {
   return Boolean(bridge?.attentionOutboundIds?.length || bridge?.retryingOutboundIds?.length || bridge?.pendingSendResultIds?.length);
+}
+
+function bridgeAvailabilityText(bridge) {
+  if (bridge?.status === 'offline') return 'Bridge offline: ' + (bridge.error || 'local listener is not reachable');
+  const availability = bridge?.tabAvailability;
+  if (!availability) return 'ChatGPT tab availability unknown.';
+  return 'ChatGPT tab ' + availability.status + ': ' + availability.reason;
 }
 
 function selectRetryTransportId(bridge) {

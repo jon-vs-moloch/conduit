@@ -46,13 +46,13 @@ async function refresh() {
 function render(health) {
   const needsAttention = health.lastTransportError?.needsAttention === true || health.attentionOutbound > 0;
   const canRetry = bridgeCanRetry(health);
-  const hasTab = health.tabStatusCount > 0;
-  setBadge(needsAttention ? 'Attention' : canRetry ? 'Sending' : hasTab ? 'Connected' : 'No tab', needsAttention ? 'error' : hasTab ? 'ok' : '');
+  const tabAvailable = health.tabAvailability?.status === 'ready';
+  setBadge(needsAttention ? 'Attention' : canRetry ? 'Sending' : tabAvailable ? 'Connected' : 'No tab', needsAttention || !tabAvailable ? 'error' : 'ok');
 
-  elements.tabState.textContent = hasTab ? 'alive' : 'missing';
+  elements.tabState.textContent = tabAvailabilityLabel(health);
   elements.outboundState.textContent = outboundSummary(health);
   elements.lastTab.textContent = health.lastTabStatus
-    ? `${health.lastTabStatus.status || 'unknown'} · ${health.lastTabStatus.title || health.lastTabStatus.url || 'unknown tab'}`
+    ? `${health.lastTabStatus.status || 'unknown'} · ${health.lastTabStatus.title || health.lastTabStatus.url || 'unknown tab'} · ${health.tabAvailability?.reason || 'availability unknown'}`
     : 'No content-script heartbeat';
   elements.lastSend.textContent = health.lastSendResult
     ? `${health.lastSendResult.status || 'unknown'} ${health.lastSendResult.transportId || ''}`.trim()
@@ -103,6 +103,14 @@ function retryPanelText(health) {
     return `${id}: send is in progress; retry if the tab appears stalled.`;
   }
   return `${id}: retry available.`;
+}
+
+function tabAvailabilityLabel(health) {
+  const status = health?.tabAvailability?.status;
+  if (status === 'ready') return 'alive';
+  if (status === 'stale') return 'stale';
+  if (status === 'unavailable') return 'unavailable';
+  return 'missing';
 }
 
 function setBadge(text, className) {
