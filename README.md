@@ -309,8 +309,10 @@ to inspect action, reason, policy, and args before approving or denying.
 Untrusted exact clipboard envelopes also create approval records. These records
 are labeled as `conduit.review` and summarize the claimed source, declared
 permissions, requested capabilities, actions, and whether session credentials
-were present. They are review-first consent prompts; approving one does not
-grant a standing permission or broaden future execution policy.
+were present. Approving one executes the reviewed actions once under a narrow
+read-only local policy rooted at the review's project root. It does not grant a
+standing permission, create a trusted session, or broaden future execution
+policy.
 
 ## Tools And Policy
 

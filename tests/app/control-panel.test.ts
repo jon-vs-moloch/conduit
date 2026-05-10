@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -138,6 +138,97 @@ describe('control panel app', () => {
       decidedBy: 'control-app',
       decisionReason: 'Approved in test.'
     });
+  });
+
+  it('executes an approved untrusted review once through the API', async () => {
+    const approval = await createApprovalRequest({
+      action: {
+        id: 'review_untrusted_request',
+        tool: 'conduit.review',
+        args: {
+          source: { kind: 'clipboard', trust: 'untrusted' },
+          permissions: [],
+          actions: [
+            { id: 'read', tool: 'file.read', args: { path: 'README.md' } }
+          ],
+          noncePresent: false
+        },
+        reason: 'Review untrusted Conduit request before execution.',
+        risk: 'high'
+      },
+      policyReason: 'Request is not attached to a trusted session.',
+      prompt: 'Review?',
+      projectRoot
+    });
+
+    const approved = await fetchJson(`${app.url}/api/approvals/${approval.approvalId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: 'Approved once in test.' })
+    });
+    expect(approved.approval).toMatchObject({
+      approvalId: approval.approvalId,
+      status: 'approved'
+    });
+    expect(approved.execution).toMatchObject({
+      status: 'executed',
+      approvalId: approval.approvalId
+    });
+    expect(approved.execution.rendered).toContain('CONDUIT_RESULTS_JSON');
+    expect(approved.execution.rendered).toContain('hello app');
+
+    const runs = await fetchJson(`${app.url}/api/runs`);
+    expect(runs.runs[0]).toMatchObject({
+      runId: approved.execution.runId,
+      mode: 'approved-review',
+      approvalId: approval.approvalId,
+      status: 'request'
+    });
+    await expect(readFile(path.join(approved.execution.runDir, 'policy-decisions.jsonl'), 'utf8'))
+      .resolves.toContain('"decision":"allow"');
+
+    const approvedAgain = await fetchJson(`${app.url}/api/approvals/${approval.approvalId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: 'Approve again.' })
+    });
+    expect(approvedAgain.approval).toMatchObject({
+      approvalId: approval.approvalId,
+      status: 'approved'
+    });
+    expect(approvedAgain.execution).toBeUndefined();
+  });
+
+  it('keeps approved untrusted reviews read-only', async () => {
+    const approval = await createApprovalRequest({
+      action: {
+        id: 'review_untrusted_request',
+        tool: 'conduit.review',
+        args: {
+          source: { kind: 'clipboard', trust: 'untrusted' },
+          permissions: [{ kind: 'filesystem', scope: 'project', access: 'write' }],
+          actions: [
+            { id: 'write', tool: 'file.write', args: { path: 'notes.txt', content: 'nope\n', mode: 'create' } }
+          ],
+          noncePresent: false
+        },
+        reason: 'Review untrusted Conduit request before execution.',
+        risk: 'high'
+      },
+      policyReason: 'Request is not attached to a trusted session.',
+      prompt: 'Review?',
+      projectRoot
+    });
+
+    const approved = await fetchJson(`${app.url}/api/approvals/${approval.approvalId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: 'Approved once in test.' })
+    });
+    expect(approved.execution).toMatchObject({
+      status: 'executed',
+      approvalId: approval.approvalId
+    });
+    expect(approved.execution.rendered).toContain('"status": "denied"');
+    expect(approved.execution.rendered).toContain('Tool denied by read-only profile: file.write');
+    await expect(readFile(path.join(projectRoot, 'notes.txt'), 'utf8')).rejects.toThrow();
   });
 
   it('creates and copies an agent-loop handshake through the API', async () => {

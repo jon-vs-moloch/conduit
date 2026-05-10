@@ -165,6 +165,10 @@ Current state:
   - malformed JSON, multiple envelopes, and invalid session failures include repair instructions and an example request
   - exact envelopes missing a live trusted session create a review-required approval record
   - clipboard watcher writes repair output back instead of plain rejection text when available
+- Approve-once review execution is implemented:
+  - `conduit.review` approval records can execute their reviewed actions once from the control app
+  - approved untrusted reviews run under a one-shot read-only policy session
+  - approved-review runs are logged with `mode: "approved-review"` and the approval id
 
 Verification commands:
 
@@ -531,6 +535,25 @@ Behavior:
 - decorated protocol blocks offer copy-only-block behavior
 - the popup shows a desktop-app CTA when the local listener is offline
 - local execution and approval remain owned by the desktop app/daemon
+
+## Completed Gate: Approve-Once Untrusted Review Execution
+
+Implemented:
+
+```txt
+src/daemon/execute-request.ts
+src/app/control-panel.ts
+tests/app/control-panel.test.ts
+```
+
+Behavior:
+
+- exact untrusted clipboard envelopes create `conduit.review` approvals
+- the control app labels these approvals as one-request decisions
+- approving one executes only the reviewed actions once
+- execution uses a one-shot read-only policy session rooted at the review project
+- write, patch, shell, or other non-read-only actions do not become trusted just because the review was approved
+- resulting runs are visible in the Runs view with `mode: "approved-review"`
 
 ## Completed Gate: Native Result Blocks
 

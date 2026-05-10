@@ -1,10 +1,11 @@
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { createApprovalRequest, type ConfirmationRequest } from '../approvals/approval-store.js';
+import { createApprovalRequest, type ApprovalRecord, type ConfirmationRequest } from '../approvals/approval-store.js';
 import { parseClipboardEnvelope } from '../protocol/parse-clipboard-envelope.js';
 import { renderConduitRepair, renderConduitResults, type ConduitRepairEnvelope } from '../protocol/render-results.js';
 import { classifyRepairCode, createRepairEnvelope } from '../protocol/repair.js';
 import type { ActionRequestBlock, ToolResult } from '../protocol/schemas.js';
+import type { ConduitSession } from '../sessions/session-store.js';
 import { consumeSessionNonce, validateSessionNonce } from '../sessions/session-store.js';
 import { getRunDir } from '../state/paths.js';
 import { ensureRunDir, writeTextFile } from '../state/logs.js';
@@ -146,7 +147,90 @@ export async function executeConduitRequest(
   };
 }
 
+export async function executeApprovedReview(
+  approval: ApprovalRecord,
+  options: Pick<ExecuteRequestInput, 'yes' | 'confirm'> = {}
+): Promise<ExecuteRequestOutput> {
+  if (approval.status !== 'approved') {
+    return {
+      status: 'rejected',
+      approvalId: approval.approvalId,
+      reason: `Approval is ${approval.status}, not approved.`
+    };
+  }
+  if (approval.action.tool !== 'conduit.review') {
+    return {
+      status: 'ignored',
+      approvalId: approval.approvalId,
+      reason: 'Approval is not an untrusted Conduit request review.'
+    };
+  }
+
+  const args = approval.action.args as Record<string, unknown>;
+  const actions = Array.isArray(args.actions) ? args.actions as ActionRequestBlock['actions'] : [];
+  if (actions.length === 0) {
+    return {
+      status: 'rejected',
+      approvalId: approval.approvalId,
+      reason: 'Reviewed request did not include executable actions.'
+    };
+  }
+
+  const projectRoot = await resolveProjectRoot([approval.projectRoot ?? process.cwd()]);
+  const runId = createRunId();
+  const runDir = getRunDir(runId);
+  const policySession = createApprovedReviewPolicySession(projectRoot, approval.approvalId);
+
+  await ensureRunDir(runDir);
+  await writeTextFile(runDir, 'request.json', `${JSON.stringify({
+    type: 'approved-untrusted-review',
+    approvalId: approval.approvalId,
+    source: args.source ?? null,
+    permissions: args.permissions ?? [],
+    requestedCapabilities: args.requestedCapabilities ?? [],
+    actions
+  }, null, 2)}\n`);
+  await writeTextFile(runDir, 'metadata.json', `${JSON.stringify({
+    runId,
+    approvalId: approval.approvalId,
+    projectRoot,
+    mode: 'approved-review',
+    startedAt: new Date().toISOString()
+  }, null, 2)}\n`);
+
+  const results = await executeActions({
+    actions,
+    projectRoot,
+    runId,
+    runDir,
+    turn: 1,
+    yes: options.yes,
+    confirm: options.confirm,
+    policySession
+  });
+  const status = summarizeResults(results);
+  const rendered = renderConduitResults({
+    type: 'conduit.results.v1',
+    runId,
+    sessionId: policySession.sessionId,
+    results,
+    status
+  });
+  await writeTextFile(runDir, 'result.txt', rendered);
+
+  return {
+    status: 'executed',
+    approvalId: approval.approvalId,
+    runId,
+    runDir,
+    sessionId: policySession.sessionId,
+    results,
+    rendered
+  };
+}
+
 async function createUntrustedRequestReview(request: ActionRequestBlock, policyReason: string) {
+  const projectRoot = await resolveProjectRoot([process.cwd()]);
   return createApprovalRequest({
     action: {
       id: 'review_untrusted_request',
@@ -163,6 +247,7 @@ async function createUntrustedRequestReview(request: ActionRequestBlock, policyR
       risk: 'high'
     },
     policyReason,
+    projectRoot,
     prompt: [
       '[Conduit] Review untrusted request before execution.',
       '',
@@ -173,6 +258,20 @@ async function createUntrustedRequestReview(request: ActionRequestBlock, policyR
       'Approve only if you trust the source and intended local effects.'
     ].join('\n')
   });
+}
+
+function createApprovedReviewPolicySession(projectRoot: string, approvalId: string): ConduitSession {
+  return {
+    sessionId: `sess_approved_${approvalId}`,
+    label: 'Approved untrusted request',
+    createdAt: new Date().toISOString(),
+    state: 'active',
+    transport: 'clipboard',
+    permissionProfile: 'read-only',
+    allowedRoots: [projectRoot],
+    currentNonce: `approved_${approvalId}`,
+    usedNonces: []
+  };
 }
 
 function renderReviewRequired(approvalId: string, request: ActionRequestBlock): string {

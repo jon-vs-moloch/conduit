@@ -9,6 +9,7 @@ import { createSession, listSessions, revokeSession } from '../sessions/session-
 import { isPermissionProfileName } from '../sessions/profiles.js';
 import { renderAgentHandshake } from '../protocol/render-agent-handshake.js';
 import { listApprovalRequests, resolveApprovalRequest } from '../approvals/approval-store.js';
+import { executeApprovedReview } from '../daemon/execute-request.js';
 
 export interface ControlPanelOptions {
   host?: string;
@@ -171,12 +172,19 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     if (req.method === 'POST' && approvalMatch?.[1] && approvalMatch?.[2]) {
       const body = await readJsonBody(req) as { reason?: unknown };
       const decision = approvalMatch[2] === 'approve' ? 'approved' : 'denied';
+      const approvalId = decodeURIComponent(approvalMatch[1]);
+      const before = (await listApprovalRequests()).find((record) => record.approvalId === approvalId);
       const approval = await resolveApprovalRequest(
-        decodeURIComponent(approvalMatch[1]),
+        approvalId,
         decision,
         typeof body.reason === 'string' ? body.reason : undefined,
         'control-app'
       );
+      if (decision === 'approved' && before?.status === 'pending' && approval.action.tool === 'conduit.review') {
+        const execution = await executeApprovedReview(approval, { yes: true });
+        sendJson(res, 200, { approval, execution });
+        return;
+      }
       sendJson(res, 200, { approval });
       return;
     }
@@ -220,6 +228,7 @@ async function listRuns(): Promise<Array<Record<string, unknown>>> {
     return {
       runId,
       mode: metadata?.mode ?? 'agent-loop',
+      approvalId: metadata?.approvalId,
       projectRoot: metadata?.projectRoot,
       startedAt: metadata?.startedAt,
       status: final?.status ?? (resultText ? 'request' : 'unknown'),
@@ -496,9 +505,13 @@ function renderApprovals() {
       '<td><strong>' + escapeHtml(approval.action?.tool || '') + '</strong><br><span class="subtle">' + escapeHtml(approval.approvalId) + '</span></td>' +
       '<td>' + escapeHtml(approval.action?.reason || '(none provided)') + '<br><span class="subtle">' + escapeHtml(approval.policyReason || '') + '</span></td>' +
       '<td><pre>' + escapeHtml(JSON.stringify(approval.action?.args || {}, null, 2)) + '</pre></td>' +
-      '<td><button class="btn primary" data-approve="' + encodeURIComponent(approval.approvalId) + '">Approve</button> ' +
+      '<td><button class="btn primary" data-approve="' + encodeURIComponent(approval.approvalId) + '">' + approvalButtonLabel(approval) + '</button> ' +
       '<button class="btn danger" data-deny="' + encodeURIComponent(approval.approvalId) + '">Deny</button></td>' +
     '</tr>').join('') + '</tbody></table>';
+}
+
+function approvalButtonLabel(approval) {
+  return approval.action?.tool === 'conduit.review' ? 'Approve once' : 'Approve';
 }
 
 function renderRuns() {
@@ -538,11 +551,11 @@ document.addEventListener('click', async (event) => {
 
   const approve = event.target.dataset?.approve;
   if (approve) {
-    await api('/api/approvals/' + approve + '/approve', {
+    const result = await api('/api/approvals/' + approve + '/approve', {
       method: 'POST',
       body: JSON.stringify({ reason: 'Approved from Conduit Control.' })
     });
-    setStatus('Action approved.');
+    setStatus(result.execution?.runId ? 'Approved and executed run ' + result.execution.runId + '.' : 'Action approved.');
     await refresh();
   }
 
