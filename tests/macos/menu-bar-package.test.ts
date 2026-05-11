@@ -9,6 +9,7 @@ describe('macOS menu-bar package scaffold', () => {
     await expectExists('macos/ConduitMenuBar/Assets/ConduitIcon.svg');
     await expectExists('script/build_and_run.sh');
     await expectExists('script/package_dmg.sh');
+    await expectExists('script/package_extension.sh');
 
     const main = await readText('macos/ConduitMenuBar/Sources/ConduitMenuBar/main.swift');
     expect(main).toContain('NSStatusBar.system.statusItem');
@@ -18,6 +19,10 @@ describe('macOS menu-bar package scaffold', () => {
     expect(main).toContain('startAgentListener()');
     expect(main).toContain('startControlApp()');
     expect(main).toContain('applicationShouldTerminate');
+    expect(main).toContain('application(_ application: NSApplication, open urls: [URL])');
+    expect(main).toContain('handleConduitURL');
+    expect(main).toContain('/api/url/open');
+    expect(main).toContain('Conduit link executed');
     expect(main).toContain('Copy Agent Handshake');
     expect(main).toContain('/api/agent-handshake');
     expect(main).toContain('NSPasteboard.general');
@@ -25,6 +30,19 @@ describe('macOS menu-bar package scaffold', () => {
     expect(main).toContain('Keep Running');
     expect(main).toContain('pkill');
     expect(main).toContain('Check for Updates');
+    expect(main).toContain('scheduleStartupUpdateCheck');
+    expect(main).toContain('notifyWhenCurrent: false');
+    expect(main).toContain('Install Update');
+    expect(main).toContain('CryptoKit');
+    expect(main).toContain('ok.signed-manifest.v1');
+    expect(main).toContain('ECDSA_P256_SHA256_DER');
+    expect(main).toContain('ConduitOKPublisherPublicKeyPEM');
+    expect(main).toContain('https://owlandkestrel.com/releases/conduit/appcast.json');
+    expect(main).toContain('Refusing to install an update from an unsigned manifest.');
+    expect(main).toContain('Downloaded update hash did not match the signed manifest.');
+    expect(main).toContain('hdiutil attach');
+    expect(main).toContain('ditto "$MOUNT_POINT/Conduit.app" "$APP_PATH"');
+    expect(main).toContain('/usr/bin/open -n "$APP_PATH"');
     expect(main).toContain('Open Logs');
     expect(main).toContain('Report Bug');
     expect(main).toContain('openDiagnostics');
@@ -68,7 +86,12 @@ describe('macOS menu-bar package scaffold', () => {
     expect(script).toContain('src/cli/index.ts daemon start');
     expect(script).toContain('src/cli/index.ts listen --project');
     expect(script).toContain('LSUIElement');
+    expect(script).toContain('CFBundleURLTypes');
+    expect(script).toContain('<string>conduit</string>');
     expect(script).toContain('CONDUIT_REPO_ROOT="$ROOT" /usr/bin/open -n "$APP_BUNDLE"');
+    expect(script).toContain('CFBundleShortVersionString');
+    expect(script).toContain('CONDUIT_OK_PUBLISHER_PUBLIC_KEY_PEM');
+    expect(script).toContain('ConduitOKPublisherKeyID');
 
     const packageScript = await readText('script/package_dmg.sh');
     expect(packageScript).toContain('hdiutil create');
@@ -83,9 +106,18 @@ describe('macOS menu-bar package scaffold', () => {
     expect(packageScript).toContain('CONDUIT_RELEASE_BASE_URL');
     expect(packageScript).toContain('CONDUIT_RELEASE_CHANNEL');
     expect(packageScript).toContain('CONDUIT_DMG_SIZE_BYTES');
+    expect(packageScript).toContain('APPCAST_PAYLOAD_PATH');
+    expect(packageScript).toContain('OK_RELEASE_PRIVATE_KEY_PEM');
+    expect(packageScript).toContain('ok-release-tools/scripts/sign-manifest.mjs');
+    expect(packageScript).toContain('publisherDomain');
     expect(packageScript).toContain('RELEASE_NOTES.txt');
     expect(packageScript).toContain("new URL('file://' + process.argv[1]).href");
     expect(packageScript).toContain('Local preview DMG generated from this checkout');
+
+    const extensionPackageScript = await readText('script/package_extension.sh');
+    expect(extensionPackageScript).toContain('conduit-bridge-extension.zip');
+    expect(extensionPackageScript).toContain('Load unpacked');
+    expect(extensionPackageScript).toContain('ALPHA_INSTALL.txt');
   });
 
   it('ships a local update manifest with release-artifact metadata', async () => {
@@ -93,6 +125,9 @@ describe('macOS menu-bar package scaffold', () => {
     const manifest = JSON.parse(text);
     expect(manifest).toMatchObject({
       schema: 'conduit.update-manifest.v1',
+      appId: 'conduit',
+      publisherId: 'owl-kestrel',
+      publisherDomain: 'owlandkestrel.com',
       version: '0.0.1',
       channel: 'local-preview'
     });
@@ -153,6 +188,7 @@ describe('macOS menu-bar package scaffold', () => {
     expect(packageJson.scripts['macos:build']).toBe('./script/build_and_run.sh --build-only');
     expect(packageJson.scripts['macos:run']).toBe('./script/build_and_run.sh');
     expect(packageJson.scripts['macos:package']).toBe('./script/package_dmg.sh');
+    expect(packageJson.scripts['extension:package']).toBe('./script/package_extension.sh');
 
     const environment = await readText('.codex/environments/environment.toml');
     expect(environment).toContain('[actions.Run]');

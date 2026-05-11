@@ -1,5 +1,8 @@
 {
   "schema": "conduit.update-manifest.v1",
+  "appId": "conduit",
+  "publisherId": "owl-kestrel",
+  "publisherDomain": "owlandkestrel.com",
   "version": "0.0.1",
   "channel": "local-preview",
   "publishedAt": "2026-05-05T00:00:00Z",

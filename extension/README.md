@@ -18,13 +18,36 @@ The extension does not bypass auth, solve verification challenges, extract cooki
 
 Extension-only mode is intentionally non-executing. It can make Conduit blocks easier to recognize and copy, but local execution and approval require the Conduit desktop app and daemon.
 
+## Alpha Package
+
+Package the optional alpha extension from the repo root:
+
+```txt
+npm run extension:package
+```
+
+That creates `dist/extension/conduit-bridge-extension.zip` with a small install
+note for developer-mode testers.
+
+When Conduit desktop is installed, the dogfood path is a `conduit://` link from
+the download page or the Conduit Control **Download Extension** button. That link
+opens a one-time local review for `conduit.extension.prepareAlphaInstall`, then
+prepares the same folder under `~/Downloads/Conduit`.
+
 ## How to Install (Unpacked)
+
+Until the extension is approved as an unlisted Chrome Web Store item, alpha
+testers need the dirty developer-mode path:
+
 1. Open Google Chrome or Brave.
 2. Navigate to `chrome://extensions/`.
 3. Enable **Developer mode** (toggle in the top right).
-4. Click **Load unpacked**.
-5. Select this repository's `extension/` directory.
-6. The extension is now active!
+4. Unzip `dist/extension/conduit-bridge-extension.zip`, or use the repository
+   `extension/` directory for local development.
+5. Click **Load unpacked**.
+6. Select the unzipped `conduit-bridge-extension` folder or local `extension/`
+   directory.
+7. Reload your ChatGPT tab.
 
 ## How to Run
 

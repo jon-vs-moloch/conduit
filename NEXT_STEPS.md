@@ -524,8 +524,8 @@ Important limitation:
 
 - this is a local preview app and unsigned preview DMG, not a signed/notarized distributable
 - first launch from the DMG may require right-click Open because Gatekeeper cannot verify a developer identity yet
-- update checking can find and open an artifact URL, but does not self-replace the app bundle yet
-- the local preview manifest is intentionally unsigned; production releases should use signed artifacts and a real manifest signature story
+- update checking can install a verified O&K-signed macOS update by downloading the DMG, checking its SHA-256, replacing `Conduit.app`, and relaunching
+- the local preview manifest is intentionally unsigned; replacement is refused unless the manifest verifies against the pinned O&K publisher key
 
 ## Next Gate 3: Signed Desktop/Menu-Bar Release
 

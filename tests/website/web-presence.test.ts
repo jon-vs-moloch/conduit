@@ -27,7 +27,7 @@ describe('web presence', () => {
       const html = await readWebsiteFile(page);
       const links = [...html.matchAll(/\b(?:href|src)="([^"]+)"/g)].map((match) => match[1]);
       for (const link of links) {
-        if (link.startsWith('http') || link.startsWith('#')) continue;
+        if (link.startsWith('http') || link.startsWith('#') || link.startsWith('conduit:')) continue;
         expect(knownFiles.has(link), `${page} references missing asset or page ${link}`).toBe(true);
       }
     }
@@ -49,7 +49,13 @@ describe('web presence', () => {
     expect(download).toContain('Download for macOS');
     expect(download).toContain('Conduit.dmg');
     expect(download).toContain('drag <code>Conduit.app</code> to Applications');
-    expect(download).toContain('browser extension only if you want paired ChatGPT transport');
+    expect(download).toContain('Load the browser extension only if you want paired ChatGPT transport');
+    expect(download).toContain('Browser Extension Alpha');
+    expect(download).toContain('Prepare extension with Conduit');
+    expect(download).toContain('conduit://run?payload=');
+    expect(download).toContain('conduit.extension.prepareAlphaInstall');
+    expect(download).toContain('https://owlandkestrel.com/releases/conduit/conduit-bridge-extension.zip');
+    expect(download).toContain('npm run extension:package');
     expect(download).toContain('Build From Source');
     expect(download).toContain('Windows and Linux');
     expect(download).toContain('Preview packages now carry launchers');

@@ -7,6 +7,7 @@ import { filePatchTool } from './file-patch.js';
 import { shellRunTool } from './shell-run.js';
 import { conduitAboutTool } from './conduit-about.js';
 import { conduitHelpTool } from './conduit-help.js';
+import { conduitExtensionPrepareAlphaInstallTool } from './conduit-extension.js';
 import type { ToolDefinition } from './types.js';
 
 const TOOLS = [
@@ -16,6 +17,7 @@ const TOOLS = [
   gitDiffTool,
   conduitAboutTool,
   conduitHelpTool,
+  conduitExtensionPrepareAlphaInstallTool,
   fileWriteTool,
   filePatchTool,
   shellRunTool

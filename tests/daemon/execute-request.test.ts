@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { executeRequestFromText } from '../../src/daemon/execute-request.js';
+import { executeRequestFromText, executeRequestFromUnknown } from '../../src/daemon/execute-request.js';
 import { listApprovalRequests } from '../../src/approvals/approval-store.js';
 import { createSession, getSession } from '../../src/sessions/session-store.js';
 
@@ -125,6 +125,30 @@ describe('executeRequestFromText', () => {
     const updated = await getSession(session.sessionId);
     expect(updated?.usedNonces).toContain(session.currentNonce);
     expect(updated?.currentNonce).toBe(output.nextNonce);
+  });
+
+  it('executes structured URL-style payloads without clipboard fencing', async () => {
+    const session = await createSession({
+      label: 'URL payload',
+      permissionProfile: 'read-only',
+      allowedRoots: [projectRoot],
+      transport: 'api'
+    });
+
+    const output = await executeRequestFromUnknown({
+      schema: 'conduit.request.v1',
+      source: { kind: 'conduit-link', trust: 'untrusted' },
+      permissions: [],
+      sessionId: session.sessionId,
+      nonce: session.currentNonce,
+      actions: [
+        { id: 'read', tool: 'file.read', args: { path: 'README.md' } }
+      ]
+    });
+
+    expect(output.status).toBe('executed');
+    expect(output.rendered).toContain('hello request');
+    await expect(readFile(path.join(output.runDir!, 'request.json'), 'utf8')).resolves.toContain('conduit-link');
   });
 
   it('executes a compact trusted request after normalization', async () => {

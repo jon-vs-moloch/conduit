@@ -19,13 +19,13 @@
   </header>
   <main class="page">
     <h1>Download Conduit</h1>
-    <p class="lead">The v0 install path is a macOS app: download the DMG, drag Conduit into Applications, then launch it from the menu bar. The first public build is unsigned while Apple notarization is delayed, but it already supervises the control app, browser bridge, and clipboard daemon.</p>
+    <p class="lead">The v0 install path is a macOS app: download the DMG, drag Conduit into Applications, then launch it from the menu bar. Conduit checks the Owl & Kestrel release channel for signed update manifests, verifies downloaded artifacts, and installs trusted updates in place.</p>
     <div class="actions">
       <a class="button primary" href="https://github.com/jon-vs-moloch/conduit/releases">Download for macOS</a>
       <a class="button" href="https://github.com/jon-vs-moloch/conduit">Source and checksums</a>
     </div>
     <div class="callout">
-      <p>The preview DMG contains <code>Conduit.app</code>, an <code>Applications</code> shortcut, release notes, and first-launch guidance. On the first unsigned build, macOS may require right-click <strong>Open</strong> before it will launch.</p>
+      <p>The DMG contains <code>Conduit.app</code>, an <code>Applications</code> shortcut, release notes, and first-launch guidance. Preview builds may still require right-click <strong>Open</strong> before macOS will launch them.</p>
     </div>
     <div class="callout">
       <p>Do not enable embedded-block parsing for normal clipboard use. Compliance mode should remain exact-envelope-only unless you are deliberately testing an unsafe profile.</p>
@@ -37,7 +37,7 @@
       </article>
       <article class="card">
         <h3>Browser extension</h3>
-        <p>The extension is optional for clipboard-only use. Install it when you want ChatGPT agent-loop transport, protocol-block presentation, and copy-only-block affordances.</p>
+        <p>The extension is optional for clipboard-only use. Alpha testers can load the packaged extension in Chrome or Brave Developer mode until the Web Store listing is ready.</p>
       </article>
       <article class="card">
         <h3>Windows and Linux</h3>
@@ -50,7 +50,54 @@
         <li>Download <code>Conduit.dmg</code> from the latest GitHub release.</li>
         <li>Open the DMG and drag <code>Conduit.app</code> to Applications.</li>
         <li>Launch Conduit, then choose <strong>Open Control Panel</strong> from the menu-bar icon.</li>
-        <li>Install the browser extension only if you want paired ChatGPT transport.</li>
+        <li>Load the browser extension only if you want paired ChatGPT transport.</li>
+      </ol>
+    </section>
+    <section class="download-steps" aria-label="Browser extension alpha">
+      <h2>Browser Extension Alpha</h2>
+      <p>The extension is a temporary developer-mode package until the Chrome Web Store account and unlisted listing are ready. If Conduit is installed, use the Conduit link to prepare the package through the same local review flow as any other request.</p>
+      <p><a class="button primary" id="extensionConduitLink" href="#">Prepare extension with Conduit</a></p>
+      <pre class="code" id="extensionConduitRequest">{
+  "schema": "conduit.request.v1",
+  "source": {
+    "kind": "conduit-link",
+    "trust": "untrusted",
+    "publisher": "owl-kestrel",
+    "domain": "owlandkestrel.com"
+  },
+  "permissions": [
+    {
+      "kind": "browser-extension",
+      "scope": "conduit-alpha",
+      "access": "prepare"
+    }
+  ],
+  "title": "Prepare Conduit Bridge extension alpha install",
+  "description": "Downloads the Conduit Bridge alpha extension package, extracts it, and opens Chrome extension settings.",
+  "actions": [
+    {
+      "id": "prepare_extension_alpha",
+      "tool": "conduit.extension.prepareAlphaInstall",
+      "args": {
+        "url": "https://owlandkestrel.com/releases/conduit/conduit-bridge-extension.zip"
+      },
+      "reason": "Prepare optional browser extension for paired ChatGPT transport.",
+      "risk": "low"
+    }
+  ],
+  "resultMode": {
+    "transport": "app",
+    "format": "markdown"
+  }
+}</pre>
+      <p class="lead-small">Manual source checkout fallback:</p>
+      <pre class="code">npm run extension:package
+unzip dist/extension/conduit-bridge-extension.zip</pre>
+      <ol>
+        <li>Open <code>chrome://extensions/</code> in Chrome or Brave.</li>
+        <li>Enable Developer mode.</li>
+        <li>Choose <strong>Load unpacked</strong> and select the unzipped <code>conduit-bridge-extension</code> folder.</li>
+        <li>Reload your ChatGPT tab.</li>
       </ol>
     </section>
     <section class="download-steps" aria-label="Build from source">
@@ -63,5 +110,12 @@ open dist/macos/Conduit.dmg</pre>
     </section>
   </main>
   <footer class="footer">Conduit v0 is local-first and intentionally conservative by default.</footer>
+  <script>
+    const request = document.getElementById('extensionConduitRequest').textContent;
+    const bytes = new TextEncoder().encode(request);
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    document.getElementById('extensionConduitLink').href = 'conduit://run?payload=' + btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  </script>
 </body>
 </html>

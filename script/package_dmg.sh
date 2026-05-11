@@ -10,10 +10,12 @@ DMG_ROOT="$DIST_DIR/dmg-root"
 DMG_PATH="$DIST_DIR/$DMG_FILENAME"
 CHECKSUM_PATH="$DMG_PATH.sha256"
 APPCAST_PATH="$DIST_DIR/conduit-appcast.json"
+APPCAST_PAYLOAD_PATH="$DIST_DIR/conduit-appcast.payload.json"
 RELEASE_NOTES_PATH="$DIST_DIR/RELEASE_NOTES.txt"
 VOLUME_NAME="${CONDUIT_DMG_VOLUME_NAME:-Conduit}"
 RELEASE_CHANNEL="${CONDUIT_RELEASE_CHANNEL:-local-preview}"
 RELEASE_NOTES="${CONDUIT_RELEASE_NOTES:-Local preview DMG generated from this checkout. This artifact is unsigned and not notarized.}"
+OK_RELEASE_SIGNER="${OK_RELEASE_SIGNER:-/Users/jon/Projects/utilities/ok-release-tools/scripts/sign-manifest.mjs}"
 MODE="${1:-}"
 
 if ! command -v hdiutil >/dev/null 2>&1; then
@@ -38,7 +40,7 @@ case "$MODE" in
     ;;
 esac
 
-rm -rf "$DMG_ROOT" "$DMG_PATH" "$CHECKSUM_PATH" "$APPCAST_PATH" "$RELEASE_NOTES_PATH"
+rm -rf "$DMG_ROOT" "$DMG_PATH" "$CHECKSUM_PATH" "$APPCAST_PATH" "$APPCAST_PAYLOAD_PATH" "$RELEASE_NOTES_PATH"
 mkdir -p "$DMG_ROOT"
 
 /usr/bin/ditto "$APP_BUNDLE" "$DMG_ROOT/$APP_NAME.app"
@@ -92,6 +94,9 @@ Artifact:
 - Size: $DMG_SIZE_BYTES bytes
 NOTES
 
+CONDUIT_APP_ID="${CONDUIT_APP_ID:-conduit}" \
+CONDUIT_PUBLISHER_ID="${CONDUIT_PUBLISHER_ID:-owl-kestrel}" \
+CONDUIT_PUBLISHER_DOMAIN="${CONDUIT_PUBLISHER_DOMAIN:-owlandkestrel.com}" \
 CONDUIT_VERSION="$CONDUIT_VERSION" \
 CONDUIT_DMG_URL="$CONDUIT_DMG_URL" \
 CONDUIT_DMG_SHA256="$DMG_SHA256" \
@@ -99,9 +104,12 @@ CONDUIT_DMG_SIZE_BYTES="$DMG_SIZE_BYTES" \
 CONDUIT_PUBLISHED_AT="$CONDUIT_PUBLISHED_AT" \
 CONDUIT_RELEASE_CHANNEL="$RELEASE_CHANNEL" \
 CONDUIT_RELEASE_NOTES="$RELEASE_NOTES" \
-node <<'NODE' > "$APPCAST_PATH"
+node <<'NODE' > "$APPCAST_PAYLOAD_PATH"
 const manifest = {
   schema: 'conduit.update-manifest.v1',
+  appId: process.env.CONDUIT_APP_ID,
+  publisherId: process.env.CONDUIT_PUBLISHER_ID,
+  publisherDomain: process.env.CONDUIT_PUBLISHER_DOMAIN,
   version: process.env.CONDUIT_VERSION,
   channel: process.env.CONDUIT_RELEASE_CHANNEL,
   publishedAt: process.env.CONDUIT_PUBLISHED_AT,
@@ -120,7 +128,19 @@ const manifest = {
 process.stdout.write(`${JSON.stringify(manifest, null, 2)}\n`);
 NODE
 
+if [[ -n "${OK_RELEASE_PRIVATE_KEY_PEM:-}" ]]; then
+  OK_RELEASE_PRIVATE_KEY_PEM="$OK_RELEASE_PRIVATE_KEY_PEM" \
+  OK_RELEASE_PUBLISHER_ID="${OK_RELEASE_PUBLISHER_ID:-owl-kestrel}" \
+  OK_RELEASE_PUBLISHER_NAME="${OK_RELEASE_PUBLISHER_NAME:-Owl & Kestrel}" \
+  OK_RELEASE_PUBLISHER_DOMAIN="${OK_RELEASE_PUBLISHER_DOMAIN:-owlandkestrel.com}" \
+  OK_RELEASE_KEY_ID="${OK_RELEASE_KEY_ID:-ok-release-p256-v1}" \
+  node "$OK_RELEASE_SIGNER" "$APPCAST_PAYLOAD_PATH" "$APPCAST_PATH"
+else
+  cp "$APPCAST_PAYLOAD_PATH" "$APPCAST_PATH"
+fi
+
 echo "Created $DMG_PATH"
 echo "Wrote $CHECKSUM_PATH"
 echo "Wrote $APPCAST_PATH"
+echo "Wrote $APPCAST_PAYLOAD_PATH"
 echo "Wrote $RELEASE_NOTES_PATH"

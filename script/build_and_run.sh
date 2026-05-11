@@ -10,6 +10,12 @@ DIST_DIR="$ROOT/dist/macos"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 SWIFT_BUILD_DIR="${CONDUIT_SWIFT_BUILD_DIR:-${TMPDIR:-/tmp}/conduit-menubar-build}"
 EXECUTABLE="$SWIFT_BUILD_DIR/debug/$PRODUCT"
+CONDUIT_VERSION="$(node -e "console.log(require('$ROOT/package.json').version)")"
+CONDUIT_BUILD_NUMBER="${CONDUIT_BUILD_NUMBER:-1}"
+CONDUIT_OK_PUBLISHER_ID="${CONDUIT_OK_PUBLISHER_ID:-owl-kestrel}"
+CONDUIT_OK_PUBLISHER_DOMAIN="${CONDUIT_OK_PUBLISHER_DOMAIN:-owlandkestrel.com}"
+CONDUIT_OK_PUBLISHER_KEY_ID="${CONDUIT_OK_PUBLISHER_KEY_ID:-ok-release-p256-v1}"
+CONDUIT_OK_PUBLISHER_PUBLIC_KEY_PEM="${CONDUIT_OK_PUBLISHER_PUBLIC_KEY_PEM:-}"
 
 MODE="${1:-}"
 
@@ -29,6 +35,11 @@ stage_bundle() {
   mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
   cp "$EXECUTABLE" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
   cp "$PACKAGE_DIR/Assets/ConduitIcon.svg" "$APP_BUNDLE/Contents/Resources/ConduitIcon.svg"
+  PUBLIC_KEY_PLIST="$(CONDUIT_OK_PUBLISHER_PUBLIC_KEY_PEM="$CONDUIT_OK_PUBLISHER_PUBLIC_KEY_PEM" node <<'NODE'
+const raw = process.env.CONDUIT_OK_PUBLISHER_PUBLIC_KEY_PEM || '';
+process.stdout.write(raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+NODE
+)"
   cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -44,10 +55,29 @@ stage_bundle() {
   <string>$APP_NAME</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>$BUNDLE_ID.url</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>conduit</string>
+      </array>
+    </dict>
+  </array>
   <key>CFBundleShortVersionString</key>
-  <string>0.0.1</string>
+  <string>$CONDUIT_VERSION</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>$CONDUIT_BUILD_NUMBER</string>
+  <key>ConduitOKPublisherID</key>
+  <string>$CONDUIT_OK_PUBLISHER_ID</string>
+  <key>ConduitOKPublisherDomain</key>
+  <string>$CONDUIT_OK_PUBLISHER_DOMAIN</string>
+  <key>ConduitOKPublisherKeyID</key>
+  <string>$CONDUIT_OK_PUBLISHER_KEY_ID</string>
+  <key>ConduitOKPublisherPublicKeyPEM</key>
+  <string>$PUBLIC_KEY_PLIST</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>LSUIElement</key>

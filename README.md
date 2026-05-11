@@ -59,6 +59,14 @@ build:
 CONDUIT_RELEASE_BASE_URL="https://github.com/jon-vs-moloch/conduit/releases/download/v0.0.1" npm run macos:package
 ```
 
+For launch builds, O&K owns the signed release channel. Provide
+`OK_RELEASE_PRIVATE_KEY_PEM` when packaging to wrap the Conduit appcast in an
+`ok.signed-manifest.v1` envelope. The menu-bar app pins the O&K publisher
+identity from the app bundle, verifies the signed manifest, verifies the DMG
+SHA-256, then installs the update in place and relaunches Conduit. Unsigned local
+manifests remain useful for preview checks, but the installer refuses to replace
+the app from an unsigned manifest.
+
 ## Common Commands
 
 ```txt
@@ -71,6 +79,7 @@ npm run eval:protocol
 npm run macos:build
 npm run macos:run
 npm run macos:package
+npm run extension:package
 npm run windows:package
 npm run linux:package
 npm run conduit -- session list
@@ -95,6 +104,9 @@ npm run login:chromium
 The durable v0 browser path is the extension bridge, not Playwright-controlled
 ChatGPT. Human auth happens in the user's normal browser.
 
+For release operations, human setup steps, and launch gotchas, see
+[docs/launch-handoff.md](docs/launch-handoff.md).
+
 ## Protocol Model Evals
 
 Conduit includes a live eval harness for checking whether small models can emit
@@ -118,14 +130,44 @@ which tools were normalized from the response.
 
 ## Browser Extension Loop
 
-Load the development extension:
+The browser extension is optional. Clipboard-only Conduit workflows work without
+it. Install the extension only if you want paired ChatGPT transport, protocol
+block presentation, and browser-side retry controls.
+
+Until the extension is approved as an unlisted Chrome Web Store item, alpha
+testers can use the developer-mode package:
+
+```txt
+npm run extension:package
+```
+
+This creates `dist/extension/conduit-bridge-extension.zip`.
+
+Dogfood install path:
+
+1. Install and launch the Conduit desktop app.
+2. Open the download page or Conduit Control.
+3. Click **Prepare extension with Conduit** / **Download Extension**.
+4. Approve the one-time Conduit review.
+5. Chrome or Brave opens its extension page; choose **Load unpacked** and select the prepared folder.
+
+The link uses `conduit://run?payload=...` and requests
+`conduit.extension.prepareAlphaInstall`, which downloads or locally builds the
+alpha extension package, verifies the package hash when one is supplied, extracts
+it under `~/Downloads/Conduit`, and opens `chrome://extensions/`.
+
+Dirty alpha install:
 
 1. Open Chrome or Brave.
 2. Go to `chrome://extensions/`.
 3. Enable Developer mode.
-4. Click **Load unpacked**.
-5. Select the `extension/` directory from this repository checkout.
-6. Reload the ChatGPT tab after each extension code change.
+4. Unzip `dist/extension/conduit-bridge-extension.zip`.
+5. Click **Load unpacked**.
+6. Select the unzipped `conduit-bridge-extension` folder.
+7. Reload your ChatGPT tab.
+
+For local extension development, load the repository `extension/` directory
+directly and reload the extension after each code change.
 
 If the desktop app or local listener is not running, the extension still acts as
 a browser-side helper: it can highlight Conduit protocol blocks, provide a

@@ -36,7 +36,8 @@ export const conduitHelpTool: ToolDefinition<z.infer<typeof ConduitHelpArgsSchem
           patch: 'file.patch',
           shell: 'shell.run',
           help: 'conduit.help',
-          about: 'conduit.about'
+          about: 'conduit.about',
+          extension: 'conduit.extension.prepareAlphaInstall'
         },
         example: {
           v: '1',

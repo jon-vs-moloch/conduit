@@ -8,6 +8,7 @@ import { getRunsRoot, getStateRoot } from '../state/paths.js';
 import { createSession, listSessions, revokeSession } from '../sessions/session-store.js';
 import { isPermissionProfileName } from '../sessions/profiles.js';
 import { renderAgentHandshake } from '../protocol/render-agent-handshake.js';
+import { createConduitUrl, parseConduitUrl } from '../protocol/conduit-url.js';
 import {
   getApprovalRequest,
   listApprovalRequests,
@@ -15,7 +16,7 @@ import {
   markApprovalExecutionRunning,
   resolveApprovalRequest
 } from '../approvals/approval-store.js';
-import { executeApprovedReview } from '../daemon/execute-request.js';
+import { executeApprovedReview, executeRequestFromUnknown } from '../daemon/execute-request.js';
 import { createDiagnosticBundle } from '../diagnostics/diagnostic-bundle.js';
 
 export interface ControlPanelOptions {
@@ -91,6 +92,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         capabilities: {
           agentHandshake: true,
           clipboardCheck: true,
+          conduitUrlOpen: true,
           approvals: true,
           sessions: true,
           runs: true
@@ -243,6 +245,18 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       return;
     }
 
+    if (req.method === 'POST' && url.pathname === '/api/url/open') {
+      const body = await readJsonBody(req) as { url?: unknown };
+      if (typeof body.url !== 'string' || !body.url.trim()) {
+        sendJson(res, 400, { error: 'Missing Conduit URL.' });
+        return;
+      }
+      const parsed = parseConduitUrl(body.url);
+      const execution = await executeRequestFromUnknown(JSON.parse(parsed.text));
+      sendJson(res, 200, { command: parsed.command, execution });
+      return;
+    }
+
     sendJson(res, 404, { error: 'Not found' });
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
@@ -310,6 +324,7 @@ function createStarterEnvelope(sessionId: string, nonce: string): Record<string,
 }
 
 function renderAppHtml(): string {
+  const extensionInstallUrl = createConduitUrl(JSON.stringify(createExtensionInstallRequest(), null, 2));
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -421,7 +436,10 @@ function renderAppHtml(): string {
         <div class="panel">
           <div class="panel-head">
             <h2>Extension Bridge</h2>
-            <button class="btn" id="retryOutbound">Retry Outbound</button>
+            <div class="toolbar">
+              <a class="btn" href="${escapeHtml(extensionInstallUrl)}" id="downloadExtension">Download Extension</a>
+              <button class="btn" id="retryOutbound">Retry Outbound</button>
+            </div>
           </div>
           <div class="panel-body">
             <div class="status-line" id="bridgeAvailability">Checking bridge...</div>
@@ -485,6 +503,35 @@ function renderAppHtml(): string {
   <script src="/app.js"></script>
 </body>
 </html>`;
+}
+
+function createExtensionInstallRequest(): Record<string, unknown> {
+  return {
+    schema: 'conduit.request.v1',
+    source: {
+      kind: 'conduit-link',
+      trust: 'untrusted',
+      publisher: 'owl-kestrel',
+      domain: 'owlandkestrel.com'
+    },
+    permissions: [
+      { kind: 'browser-extension', scope: 'conduit-alpha', access: 'prepare' }
+    ],
+    title: 'Prepare Conduit Bridge extension alpha install',
+    description: 'Downloads the Conduit Bridge alpha extension package, extracts it, and opens Chrome extension settings.',
+    actions: [
+      {
+        id: 'prepare_extension_alpha',
+        tool: 'conduit.extension.prepareAlphaInstall',
+        args: {
+          url: 'https://owlandkestrel.com/releases/conduit/conduit-bridge-extension.zip'
+        },
+        reason: 'Prepare optional browser extension for paired ChatGPT transport.',
+        risk: 'low'
+      }
+    ],
+    resultMode: { transport: 'app', format: 'markdown' }
+  };
 }
 
 export function renderAppJs(): string {

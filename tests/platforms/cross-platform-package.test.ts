@@ -15,6 +15,7 @@ describe('cross-platform desktop package scaffolds', () => {
 
   it('ships Windows preview launchers and packaging script', async () => {
     await expectExists('script/package_windows.ps1');
+    await expectExists('script/package_windows.mjs');
     await expectExists('platforms/windows/Conduit-Control.ps1');
     await expectExists('platforms/windows/Conduit-Agent-Listener.ps1');
     await expectExists('platforms/windows/Conduit-Clipboard-Daemon.ps1');
@@ -29,6 +30,13 @@ describe('cross-platform desktop package scaffolds', () => {
     expect(script).toContain('desktop-shell-contract.md');
     expect(script).toContain('Conduit-Report-Bug.ps1');
     expect(script).toContain('npm install --omit=dev');
+
+    const nodeScript = await readText('script/package_windows.mjs');
+    expect(nodeScript).toContain('Conduit-win-x64.zip');
+    expect(nodeScript).toContain("'runtime', 'dist', 'src'");
+    expect(nodeScript).toContain('desktop-shell-contract.md');
+    expect(nodeScript).toContain('Conduit-Report-Bug.ps1');
+    expect(nodeScript).toContain('npm install --omit=dev');
 
     const reportBug = await readText('platforms/windows/Conduit-Report-Bug.ps1');
     expect(reportBug).toContain('http://127.0.0.1:47831#diagnostics');
@@ -69,7 +77,7 @@ describe('cross-platform desktop package scaffolds', () => {
   it('exposes package scripts for every desktop target', async () => {
     const packageJson = JSON.parse(await readText('package.json'));
     expect(packageJson.scripts['macos:package']).toBe('./script/package_dmg.sh');
-    expect(packageJson.scripts['windows:package']).toBe('pwsh ./script/package_windows.ps1');
+    expect(packageJson.scripts['windows:package']).toBe('node ./script/package_windows.mjs');
     expect(packageJson.scripts['linux:package']).toBe('./script/package_linux.sh');
   });
 });

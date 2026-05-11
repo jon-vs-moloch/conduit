@@ -4,7 +4,7 @@ import { createApprovalRequest, type ApprovalRecord, type ConfirmationRequest } 
 import { parseClipboardEnvelope } from '../protocol/parse-clipboard-envelope.js';
 import { renderConduitRepair, renderConduitResults, type ConduitRepairEnvelope } from '../protocol/render-results.js';
 import { classifyRepairCode, createRepairEnvelope } from '../protocol/repair.js';
-import type { ActionRequestBlock, ToolResult } from '../protocol/schemas.js';
+import { ActionRequestBlockSchema, type ActionRequestBlock, type ToolResult } from '../protocol/schemas.js';
 import type { ConduitSession } from '../sessions/session-store.js';
 import { consumeSessionNonce, validateSessionNonce } from '../sessions/session-store.js';
 import { getRunDir } from '../state/paths.js';
@@ -55,6 +55,27 @@ export async function executeRequestFromText(input: ExecuteRequestInput): Promis
     yes: input.yes,
     confirm: input.confirm
   });
+}
+
+export async function executeRequestFromUnknown(
+  payload: unknown,
+  options: Pick<ExecuteRequestInput, 'yes' | 'confirm'> = {}
+): Promise<ExecuteRequestOutput> {
+  try {
+    const request = ActionRequestBlockSchema.parse(payload);
+    return executeConduitRequest(request, options);
+  } catch (error) {
+    const repair = createRepairEnvelope({
+      reason: error instanceof Error ? error.message : String(error),
+      code: 'malformed_json'
+    });
+    return {
+      status: 'rejected',
+      reason: repair.reason,
+      repair,
+      rendered: renderConduitRepair(repair)
+    };
+  }
 }
 
 export async function executeConduitRequest(

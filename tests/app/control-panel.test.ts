@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { startControlPanel, type ControlPanelHandle } from '../../src/app/control-panel.js';
 import { createApprovalRequest } from '../../src/approvals/approval-store.js';
 import type { ClipboardIO } from '../../src/daemon/clipboard-io.js';
+import { createConduitUrl } from '../../src/protocol/conduit-url.js';
 import { createSession } from '../../src/sessions/session-store.js';
 
 describe('control panel app', () => {
@@ -38,6 +39,8 @@ describe('control panel app', () => {
     expect(html).toContain('Conduit Control');
     expect(html).toContain('Extension Bridge');
     expect(html).toContain('Retry Outbound');
+    expect(html).toContain('Download Extension');
+    expect(html).toContain('conduit://run?payload=');
     expect(html).toContain('Report Bug');
     expect(html).toContain('diagnosticsView');
     const script = await fetchText(`${app.url}/app.js`);
@@ -56,6 +59,7 @@ describe('control panel app', () => {
       embeddedBlockParsing: false,
       capabilities: {
         agentHandshake: true,
+        conduitUrlOpen: true,
         approvals: true
       }
     });
@@ -160,6 +164,37 @@ describe('control panel app', () => {
 
     const runs = await fetchJson(`${app.url}/api/runs`);
     expect(runs.runs.length).toBeGreaterThan(0);
+  });
+
+  it('accepts conduit:// request URLs through the API', async () => {
+    const session = await createSession({
+      label: 'URL',
+      permissionProfile: 'read-only',
+      allowedRoots: [projectRoot],
+      transport: 'api'
+    });
+    const conduitUrl = createConduitUrl(JSON.stringify({
+      schema: 'conduit.request.v1',
+      source: { kind: 'conduit-link', trust: 'untrusted' },
+      permissions: [],
+      sessionId: session.sessionId,
+      nonce: session.currentNonce,
+      actions: [
+        { id: 'read', tool: 'file.read', args: { path: 'README.md' } }
+      ]
+    }));
+
+    const opened = await fetchJson(`${app.url}/api/url/open`, {
+      method: 'POST',
+      body: JSON.stringify({ url: conduitUrl })
+    });
+
+    expect(opened.command).toBe('run');
+    expect(opened.execution).toMatchObject({
+      status: 'executed',
+      sessionId: session.sessionId
+    });
+    expect(opened.execution.rendered).toContain('hello app');
   });
 
   it('lists and resolves pending approval requests through the API', async () => {
