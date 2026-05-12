@@ -3,6 +3,10 @@ dist/
 .DS_Store
 .env
 .env.*
+okreleasekey.txt
+okreleasekey.pub.pem
+.ok-api-key.txt
+.ok-api-cookies.txt
 coverage/
 .build/
 .swiftpm/

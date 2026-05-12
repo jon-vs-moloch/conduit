@@ -212,10 +212,20 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         const running = await markApprovalExecutionRunning(approval.approvalId);
         try {
           const execution = await executeApprovedReview(running, { yes: true });
+          let copiedToClipboard = false;
+          let clipboardError: string | undefined;
+          if (execution.rendered) {
+            try {
+              await clipboard.write(execution.rendered);
+              copiedToClipboard = true;
+            } catch (error) {
+              clipboardError = error instanceof Error ? error.message : String(error);
+            }
+          }
           const updated = execution.runId
             ? await markApprovalExecutionFinished(approval.approvalId, { status: 'ran', runId: execution.runId })
             : await markApprovalExecutionFinished(approval.approvalId, { status: 'failed', error: execution.reason ?? 'Execution did not produce a run.' });
-          sendJson(res, 200, { approval: updated, execution });
+          sendJson(res, 200, { approval: updated, execution, copiedToClipboard, clipboardError });
         } catch (error) {
           const updated = await markApprovalExecutionFinished(approval.approvalId, {
             status: 'failed',
@@ -742,7 +752,13 @@ document.addEventListener('click', async (event) => {
       method: 'POST',
       body: JSON.stringify({ reason: 'Approved from Conduit Control.' })
     });
-    setStatus(result.execution?.runId ? 'Approved and executed run ' + result.execution.runId + '.' : 'Action approved.');
+    if (result.execution?.runId && result.copiedToClipboard) {
+      setStatus('Approved, executed run ' + result.execution.runId + ', and copied results to clipboard.');
+    } else if (result.execution?.runId) {
+      setStatus('Approved and executed run ' + result.execution.runId + '.');
+    } else {
+      setStatus('Action approved.');
+    }
     await refresh();
   }
 

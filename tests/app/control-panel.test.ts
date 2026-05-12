@@ -268,6 +268,10 @@ describe('control panel app', () => {
     });
     expect(approved.execution.rendered).toContain('CONDUIT_RESULTS_JSON');
     expect(approved.execution.rendered).toContain('hello app');
+    expect(approved.copiedToClipboard).toBe(true);
+    expect(clipboard.text).toBe(approved.execution.rendered);
+    expect(clipboard.text).toContain('CONDUIT_RESULTS_JSON');
+    expect(clipboard.text).toContain('hello app');
 
     const runs = await fetchJson(`${app.url}/api/runs`);
     expect(runs.runs[0]).toMatchObject({
