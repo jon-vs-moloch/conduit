@@ -216,3 +216,17 @@ Highest leverage before a public alpha:
 5. Chrome Web Store unlisted extension listing.
 6. First v1 registry spike: O&K-only signed manifests generalized into a
    publisher/app/snippet registry contract.
+7. Clipboard secret intake:
+   - recognize a narrow `conduit:key//...` envelope that means "store this
+     secret," never "run arbitrary clipboard text"
+   - validate provider-specific tokens before saving them, starting with Vercel
+     deploy tokens for O&K projects
+   - store secret metadata as provider, account/team, target project, validated
+     capabilities, aliases, and last verification result
+   - rewrite the clipboard to a non-secret reference such as
+     `conduit:secret//provider/account/target`
+   - resolve later workflows by provider + capability + target, not by brittle
+     alias alone, so failures explain whether no token, multiple tokens, or an
+     unverified token blocked the action
+   - keep raw secret material out of run logs, diagnostic bundles, result
+     clipboard text, and protocol repair output

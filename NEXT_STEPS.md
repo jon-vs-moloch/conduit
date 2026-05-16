@@ -187,6 +187,16 @@ Current state:
   - optional LLM review explains requested code/actions before execution
   - higher-risk approvals may include sandboxed dry-run or test evidence
   - sandboxing remains a core roadmap feature, not a substitute for local consent
+- Clipboard secret intake is planned:
+  - `conduit:key//...` should mean "ingest this secret after approval," not
+    "execute arbitrary clipboard text"
+  - v0 target provider is Vercel deploy tokens for O&K projects
+  - stored secrets should carry provider, account/team, target, capabilities,
+    aliases, and last verification metadata
+  - downstream workflows should resolve secrets by provider + capability +
+    target instead of relying only on human aliases like `ok-prod/vercel`
+  - successful intake should rewrite the clipboard to a non-secret reference and
+    keep raw secret material out of logs, diagnostics, and result text
 - Cross-platform desktop primer is planned:
   - macOS is the first working shell, but Windows and Linux desktop apps are v0 product targets
   - each shell should expose the same consent/health/reporting surface
