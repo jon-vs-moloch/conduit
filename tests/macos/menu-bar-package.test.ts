@@ -56,6 +56,18 @@ describe('macOS menu-bar package scaffold', () => {
     expect(main).toContain('refreshApprovalNotifications');
     expect(main).toContain('/api/approvals');
     expect(main).toContain('Conduit approval required');
+    expect(main).toContain('Pending Approvals');
+    expect(main).toContain('approvePendingApproval');
+    expect(main).toContain('denyPendingApproval');
+    expect(main).toContain('presentConduitURLApproval');
+    expect(main).toContain('Run \\(runId) is ready in Conduit.');
+    expect(main).toContain('accessoryView');
+    expect(main).toContain('approvalSummaryView');
+    expect(main).toContain('Open Desktop Details');
+    expect(main).toContain('Open Browser Details');
+    expect(main).toContain('ConduitApprovalDetailsPreference');
+    expect(main).toContain('Approved from Conduit menu bar.');
+    expect(main).toContain('Approved from Conduit notification.');
     expect(main).toContain('openApprovals');
     expect(main).toContain('#approvals');
     expect(main).toContain('Control App Already Running');

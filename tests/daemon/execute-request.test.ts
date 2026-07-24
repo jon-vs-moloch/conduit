@@ -37,6 +37,8 @@ describe('executeRequestFromText', () => {
     const output = await executeRequestFromText({
       text: conduitBlock({
         schema: 'conduit.request.v1',
+        title: 'Inspect project README',
+        description: 'Review the project README without changing local files.',
         source: { kind: 'clipboard', trust: 'untrusted' },
         permissions: [],
         actions: [
@@ -62,6 +64,8 @@ describe('executeRequestFromText', () => {
         tool: 'conduit.review',
         args: {
           source: { kind: 'clipboard', trust: 'untrusted' },
+          title: 'Inspect project README',
+          description: 'Review the project README without changing local files.',
           permissions: [],
           actions: [
             { id: 'read', tool: 'file.read', args: { path: 'README.md' } }

@@ -30,7 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var agentListenerNeedsAttention = false
     private var notifiedTransportIds = Set<String>()
     private var notifiedApprovalIds = Set<String>()
+    private var pendingApprovals: [ApprovalSummary] = []
     private var pendingApprovalCount = 0
+    private let detailPreferenceKey = "ConduitApprovalDetailsPreference"
     private var healthTimer: Timer?
     private var terminationConfirmed = false
 
@@ -106,6 +108,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         handshakeItem.target = self
         menu.addItem(handshakeItem)
 
+        if !pendingApprovals.isEmpty {
+            menu.addItem(NSMenuItem.separator())
+            let approvalsHeader = NSMenuItem(title: "Pending Approvals", action: nil, keyEquivalent: "")
+            approvalsHeader.isEnabled = false
+            menu.addItem(approvalsHeader)
+            for approval in pendingApprovals.prefix(5) {
+                menu.addItem(approvalMenuItem(for: approval))
+            }
+            if pendingApprovals.count > 5 {
+                let overflowItem = NSMenuItem(title: "\(pendingApprovals.count - 5) more in Control Panel...", action: #selector(openControlPanelApprovals), keyEquivalent: "")
+                overflowItem.target = self
+                menu.addItem(overflowItem)
+            }
+        }
+
         agentListenerToggleItem = NSMenuItem(
             title: agentListener.isRunning ? "Stop Agent Listener" : "Start Agent Listener",
             action: #selector(toggleAgentListener),
@@ -159,6 +176,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controlToggleItem.isEnabled = controlAppToggleEnabled()
         agentListenerToggleItem.title = agentListener.isRunning ? "Stop Agent Listener" : "Start Agent Listener"
         daemonToggleItem.title = daemon.isRunning ? "Stop Clipboard Daemon" : "Start Clipboard Daemon"
+    }
+
+    private func approvalMenuItem(for approval: ApprovalSummary) -> NSMenuItem {
+        let item = NSMenuItem(title: approvalMenuTitle(for: approval), action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+
+        let reason = approvalDisplaySubtitle(for: approval)
+        let reasonItem = NSMenuItem(title: reason, action: nil, keyEquivalent: "")
+        reasonItem.isEnabled = false
+        submenu.addItem(reasonItem)
+
+        let approveItem = NSMenuItem(
+            title: approval.action.tool == "conduit.review" ? "Approve Once" : "Approve",
+            action: #selector(approvePendingApproval(_:)),
+            keyEquivalent: ""
+        )
+        approveItem.target = self
+        approveItem.representedObject = approval.approvalId
+        submenu.addItem(approveItem)
+
+        let denyItem = NSMenuItem(title: "Deny", action: #selector(denyPendingApproval(_:)), keyEquivalent: "")
+        denyItem.target = self
+        denyItem.representedObject = approval.approvalId
+        submenu.addItem(denyItem)
+
+        submenu.addItem(NSMenuItem.separator())
+        let detailsItem = NSMenuItem(title: "Open Details", action: #selector(openPreferredApprovalDetails(_:)), keyEquivalent: "")
+        detailsItem.target = self
+        detailsItem.representedObject = approval.approvalId
+        submenu.addItem(detailsItem)
+
+        let desktopDetailsItem = NSMenuItem(title: "Open Desktop Details", action: #selector(openDesktopApprovalDetails(_:)), keyEquivalent: "")
+        desktopDetailsItem.target = self
+        desktopDetailsItem.representedObject = approval.approvalId
+        submenu.addItem(desktopDetailsItem)
+
+        let browserDetailsItem = NSMenuItem(title: "Open Browser Details", action: #selector(openBrowserApprovalDetails(_:)), keyEquivalent: "")
+        browserDetailsItem.target = self
+        browserDetailsItem.representedObject = approval.approvalId
+        submenu.addItem(browserDetailsItem)
+
+        item.submenu = submenu
+        return item
+    }
+
+    private func approvalMenuTitle(for approval: ApprovalSummary) -> String {
+        let prefix = approval.action.tool == "conduit.review" ? "Request" : approval.action.tool
+        return "\(prefix): \(approvalDisplayTitle(for: approval))"
     }
 
     private func controlAppStatusSummary() -> String {
@@ -233,12 +298,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else {
                     return
                 }
+                let oldIds = self.pendingApprovals.map(\.approvalId)
+                let newIds = pending.map(\.approvalId)
+                self.pendingApprovals = pending
                 self.pendingApprovalCount = pending.count
                 for approval in pending where !self.notifiedApprovalIds.contains(approval.approvalId) {
                     self.notifiedApprovalIds.insert(approval.approvalId)
                     self.notifyApprovalRequired(approval)
                 }
-                self.refreshMenu()
+                if oldIds != newIds {
+                    self.rebuildMenu()
+                } else {
+                    self.refreshMenu()
+                }
             }
         }.resume()
     }
@@ -321,6 +393,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         openControlPanelURL(path: "#approvals")
     }
 
+    @objc private func openControlPanelApprovals() {
+        openApprovals()
+    }
+
     private func openDiagnostics() {
         openControlPanelURL(path: "#diagnostics")
     }
@@ -346,16 +422,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task {
                 do {
                     let result = try await self.submitConduitURL(url)
+                    let approval = try await self.approvalForConduitURLExecution(result.execution)
                     await MainActor.run {
                         self.refreshApprovalNotifications()
                         if result.execution.status == "requires_review" {
-                            self.openApprovals()
+                            self.presentConduitURLApproval(result.execution, approval: approval)
                         } else if let runId = result.execution.runId {
-                            self.openControlPanelURL(path: "#runs")
-                            self.notifyConduitURLAccepted("Conduit link executed", body: "Run \(runId) is ready in Conduit Control.")
+                            self.notifyConduitURLAccepted("Conduit link executed", body: "Run \(runId) is ready in Conduit.")
                         } else {
-                            self.openControlPanel()
-                            self.notifyConduitURLAccepted("Conduit link handled", body: result.execution.reason ?? "Conduit Control has the result.")
+                            self.notifyConduitURLAccepted("Conduit link handled", body: result.execution.reason ?? "Conduit handled the request.")
                         }
                     }
                 } catch {
@@ -365,6 +440,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+    }
+
+    private func approvalForConduitURLExecution(_ execution: ConduitURLExecution) async throws -> ApprovalSummary? {
+        guard execution.status == "requires_review", let approvalId = execution.approvalId else {
+            return nil
+        }
+        return try await fetchApproval(approvalId: approvalId)
+    }
+
+    private func fetchApproval(approvalId: String) async throws -> ApprovalSummary? {
+        guard let url = URL(string: "http://127.0.0.1:47831/api/approvals") else {
+            throw AppError("Invalid approvals URL.")
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 5
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw AppError(String(data: data, encoding: .utf8) ?? "Approval lookup failed.")
+        }
+        let approvals = try JSONDecoder().decode(ApprovalsResponse.self, from: data).approvals
+        return approvals.first { $0.approvalId == approvalId }
+    }
+
+    private func presentConduitURLApproval(_ execution: ConduitURLExecution, approval fetchedApproval: ApprovalSummary?) {
+        guard let approvalId = execution.approvalId else {
+            notifyConduitURLAccepted("Conduit review required", body: execution.reason ?? "A local review is waiting in the Conduit menu.")
+            return
+        }
+        let existing = pendingApprovals.first { $0.approvalId == approvalId }
+        let approval = fetchedApproval ?? existing ?? ApprovalSummary(
+            approvalId: approvalId,
+            status: "pending",
+            policyReason: execution.reason,
+            executionStatus: nil,
+            action: ApprovalActionSummary(
+                tool: "conduit.review",
+                reason: execution.reason ?? "Review untrusted Conduit request before execution.",
+                args: nil
+            )
+        )
+        if let index = pendingApprovals.firstIndex(where: { $0.approvalId == approval.approvalId }) {
+            pendingApprovals[index] = approval
+        } else {
+            pendingApprovals.append(approval)
+            pendingApprovalCount = pendingApprovals.count
+        }
+        rebuildMenu()
+        presentApprovalPrompt(approval)
     }
 
     private func ensureControlAppReady(completion: @escaping (Bool) -> Void) {
@@ -452,6 +575,267 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshMenu()
     }
 
+    @objc private func approvePendingApproval(_ sender: NSMenuItem) {
+        guard let approvalId = sender.representedObject as? String else {
+            return
+        }
+        resolvePendingApproval(approvalId: approvalId, decision: "approve", reason: "Approved from Conduit menu bar.")
+    }
+
+    @objc private func denyPendingApproval(_ sender: NSMenuItem) {
+        guard let approvalId = sender.representedObject as? String else {
+            return
+        }
+        resolvePendingApproval(approvalId: approvalId, decision: "deny", reason: "Denied from Conduit menu bar.")
+    }
+
+    private func resolvePendingApproval(approvalId: String, decision: String, reason: String) {
+        ensureControlAppReady { [weak self] ready in
+            guard let self else {
+                return
+            }
+            guard ready else {
+                self.presentError("Could not resolve approval.", AppError("The control app did not become available."))
+                return
+            }
+            Task {
+                do {
+                    let response = try await self.submitApprovalDecision(approvalId: approvalId, decision: decision, reason: reason)
+                    await MainActor.run {
+                        self.pendingApprovals.removeAll { $0.approvalId == approvalId }
+                        self.pendingApprovalCount = self.pendingApprovals.count
+                        self.rebuildMenu()
+                        let action = decision == "approve" ? "approved" : "denied"
+                        self.notifyConduitURLAccepted("Conduit approval \(action)", body: response.statusMessage)
+                    }
+                } catch {
+                    await MainActor.run {
+                        self.presentError("Could not resolve approval.", error)
+                    }
+                }
+            }
+        }
+    }
+
+    private func presentApprovalPrompt(_ approval: ApprovalSummary) {
+        let alert = NSAlert()
+        alert.messageText = approvalDisplayTitle(for: approval)
+        alert.informativeText = approvalDisplaySubtitle(for: approval)
+        alert.accessoryView = approvalSummaryView(for: approval)
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: approval.action.tool == "conduit.review" ? "Approve Once" : "Approve")
+        alert.addButton(withTitle: "Deny")
+        alert.addButton(withTitle: "Details")
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            resolvePendingApproval(approvalId: approval.approvalId, decision: "approve", reason: "Approved from Conduit notification.")
+        } else if response == .alertSecondButtonReturn {
+            resolvePendingApproval(approvalId: approval.approvalId, decision: "deny", reason: "Denied from Conduit notification.")
+        } else {
+            openApprovalDetails(approval)
+        }
+    }
+
+    @objc private func openPreferredApprovalDetails(_ sender: NSMenuItem) {
+        guard let approval = approvalFromMenuItem(sender) else {
+            openApprovals()
+            return
+        }
+        openApprovalDetails(approval)
+    }
+
+    @objc private func openDesktopApprovalDetails(_ sender: NSMenuItem) {
+        guard let approval = approvalFromMenuItem(sender) else {
+            return
+        }
+        setApprovalDetailsPreference("desktop")
+        presentApprovalDetails(approval)
+    }
+
+    @objc private func openBrowserApprovalDetails(_ sender: NSMenuItem) {
+        setApprovalDetailsPreference("browser")
+        openApprovals()
+    }
+
+    private func approvalFromMenuItem(_ sender: NSMenuItem) -> ApprovalSummary? {
+        guard let approvalId = sender.representedObject as? String else {
+            return nil
+        }
+        return pendingApprovals.first { $0.approvalId == approvalId }
+    }
+
+    private func openApprovalDetails(_ approval: ApprovalSummary) {
+        if approvalDetailsPreference() == "browser" {
+            openApprovals()
+            return
+        }
+        presentApprovalDetails(approval)
+    }
+
+    private func presentApprovalDetails(_ approval: ApprovalSummary) {
+        let alert = NSAlert()
+        alert.messageText = approvalDisplayTitle(for: approval)
+        alert.informativeText = approvalDisplaySubtitle(for: approval)
+        alert.accessoryView = approvalDetailsView(for: approval)
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Done")
+        alert.addButton(withTitle: "Use Browser Details")
+        alert.addButton(withTitle: "Use Desktop Details")
+        let response = alert.runModal()
+        if response == .alertSecondButtonReturn {
+            setApprovalDetailsPreference("browser")
+            openApprovals()
+        } else if response == .alertThirdButtonReturn {
+            setApprovalDetailsPreference("desktop")
+        }
+    }
+
+    private func approvalDetailsPreference() -> String {
+        let stored = UserDefaults.standard.string(forKey: detailPreferenceKey)
+        return stored == "browser" ? "browser" : "desktop"
+    }
+
+    private func setApprovalDetailsPreference(_ preference: String) {
+        UserDefaults.standard.set(preference, forKey: detailPreferenceKey)
+    }
+
+    private func approvalDisplayTitle(for approval: ApprovalSummary) -> String {
+        if approval.action.tool == "conduit.review" {
+            return "Review local Conduit request"
+        }
+        if let title = approval.action.args?.title, !title.isEmpty {
+            return title
+        }
+        return humanToolName(approval.action.tool)
+    }
+
+    private func approvalDisplaySubtitle(for approval: ApprovalSummary) -> String {
+        if let description = approval.action.args?.description, !description.isEmpty {
+            return description
+        }
+        if let reason = approval.action.reason, !reason.isEmpty {
+            return reason
+        }
+        if let policyReason = approval.policyReason, !policyReason.isEmpty {
+            return policyReason
+        }
+        return "A local action is waiting for approval."
+    }
+
+    private func approvalSummaryView(for approval: ApprovalSummary) -> NSView {
+        let stack = verticalStack(width: 420)
+        addKeyValue("Source", value: approvalSourceSummary(approval), to: stack)
+        addKeyValue("Actions", value: approvalActionsSummary(approval, limit: 3), to: stack)
+        addKeyValue("Permissions", value: approvalPermissionsSummary(approval), to: stack)
+        if approval.action.args?.sessionId == nil {
+            addKeyValue("Trust", value: "No live trusted session. Approve once only.", to: stack)
+        }
+        return stack
+    }
+
+    private func approvalDetailsView(for approval: ApprovalSummary) -> NSView {
+        let stack = verticalStack(width: 520)
+        addKeyValue("Source", value: approvalSourceSummary(approval), to: stack)
+        addKeyValue("Actions", value: approvalActionsSummary(approval, limit: 12), to: stack)
+        addKeyValue("Permissions", value: approvalPermissionsSummary(approval), to: stack)
+        addKeyValue("Policy", value: approval.policyReason ?? "No additional policy reason.", to: stack)
+        addKeyValue("Decision Mode", value: approval.action.tool == "conduit.review" ? "One-request approval under read-only local policy." : "Action approval for the current run.", to: stack)
+        addKeyValue("Details Preference", value: approvalDetailsPreference() == "browser" ? "Browser control panel" : "Native desktop dialog", to: stack)
+        return stack
+    }
+
+    private func verticalStack(width: CGFloat) -> NSStackView {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.widthAnchor.constraint(equalToConstant: width).isActive = true
+        return stack
+    }
+
+    private func addKeyValue(_ key: String, value: String, to stack: NSStackView) {
+        let label = NSTextField(labelWithString: key)
+        label.font = NSFont.boldSystemFont(ofSize: 12)
+        label.textColor = .secondaryLabelColor
+        let valueLabel = NSTextField(wrappingLabelWithString: value)
+        valueLabel.font = NSFont.systemFont(ofSize: 13)
+        valueLabel.textColor = .labelColor
+        valueLabel.maximumNumberOfLines = 5
+        stack.addArrangedSubview(label)
+        stack.addArrangedSubview(valueLabel)
+    }
+
+    private func approvalSourceSummary(_ approval: ApprovalSummary) -> String {
+        guard let source = approval.action.args?.source else {
+            return "Unknown local request source"
+        }
+        return [source.kind, source.publisher, source.domain, source.trust].compactMap { $0 }.joined(separator: " / ")
+    }
+
+    private func approvalActionsSummary(_ approval: ApprovalSummary, limit: Int) -> String {
+        guard let actions = approval.action.args?.actions, !actions.isEmpty else {
+            return humanToolName(approval.action.tool)
+        }
+        let visible = actions.prefix(limit).map { action in
+            let reason = action.reason.map { " - \($0)" } ?? ""
+            return "\(action.id): \(humanToolName(action.tool))\(reason)"
+        }
+        let overflow = actions.count > limit ? ["\(actions.count - limit) more action(s)"] : []
+        return (Array(visible) + overflow).joined(separator: "\n")
+    }
+
+    private func approvalPermissionsSummary(_ approval: ApprovalSummary) -> String {
+        if let capabilities = approval.action.args?.requestedCapabilities, !capabilities.isEmpty {
+            return capabilities.joined(separator: ", ")
+        }
+        guard let permissions = approval.action.args?.permissions, !permissions.isEmpty else {
+            return "None declared"
+        }
+        return permissions.map { permission in
+            [permission.kind, permission.scope, permission.access].compactMap { $0 }.joined(separator: ": ")
+        }.joined(separator: ", ")
+    }
+
+    private func humanToolName(_ tool: String) -> String {
+        switch tool {
+        case "conduit.extension.prepareAlphaInstall":
+            return "prepare Conduit Bridge extension package"
+        case "conduit.review":
+            return "review Conduit request"
+        case "file.read":
+            return "read file"
+        case "file.write":
+            return "write file"
+        case "file.patch":
+            return "apply patch"
+        case "shell.run":
+            return "run shell command"
+        case "git.status":
+            return "check git status"
+        case "git.diff":
+            return "inspect git diff"
+        default:
+            return tool
+        }
+    }
+
+    private func submitApprovalDecision(approvalId: String, decision: String, reason: String) async throws -> ApprovalDecisionResponse {
+        guard let url = URL(string: "http://127.0.0.1:47831/api/approvals/\(approvalId)/\(decision)") else {
+            throw AppError("Invalid approval URL.")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 60
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["reason": reason])
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw AppError(String(data: data, encoding: .utf8) ?? "Approval request failed.")
+        }
+        return (try? JSONDecoder().decode(ApprovalDecisionResponse.self, from: data)) ?? ApprovalDecisionResponse()
+    }
+
     @objc private func toggleAgentListener() {
         if agentListener.isRunning {
             agentListener.stop()
@@ -483,11 +867,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } catch {
                 await MainActor.run {
                     if notifyWhenCurrent {
-                        presentError("Could not check for updates.", error)
+                        if isMissingPinnedReleaseKeyError(error) {
+                            presentUpdateResult(UpdateCheckResult.localPreviewMissingPinnedKey())
+                        } else {
+                            presentError("Could not check for updates.", error)
+                        }
                     }
                 }
             }
         }
+    }
+
+    private func isMissingPinnedReleaseKeyError(_ error: Error) -> Bool {
+        error.localizedDescription.contains("does not include a pinned O&K release public key")
     }
 
     @objc private func openLogs() {
@@ -698,7 +1090,12 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     ) {
         if response.notification.request.content.userInfo["conduitAction"] as? String == "openApprovals" {
             DispatchQueue.main.async {
-                self.openApprovals()
+                if let approvalId = response.notification.request.content.userInfo["approvalId"] as? String,
+                   let approval = self.pendingApprovals.first(where: { $0.approvalId == approvalId }) {
+                    self.presentApprovalPrompt(approval)
+                } else {
+                    self.openApprovals()
+                }
             }
         }
         completionHandler()
@@ -724,6 +1121,81 @@ struct ApprovalSummary: Decodable {
 struct ApprovalActionSummary: Decodable {
     let tool: String
     let reason: String?
+    let args: ApprovalActionArgs?
+}
+
+struct ApprovalActionArgs: Decodable {
+    let source: ApprovalSource?
+    let title: String?
+    let description: String?
+    let permissions: [ApprovalPermission]
+    let requestedCapabilities: [String]?
+    let actions: [ApprovalRequestedAction]
+    let sessionId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case source
+        case title
+        case description
+        case permissions
+        case requestedCapabilities
+        case actions
+        case sessionId
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        source = try? container.decode(ApprovalSource.self, forKey: .source)
+        title = try? container.decode(String.self, forKey: .title)
+        description = try? container.decode(String.self, forKey: .description)
+        permissions = (try? container.decode([ApprovalPermission].self, forKey: .permissions)) ?? []
+        requestedCapabilities = try? container.decode([String].self, forKey: .requestedCapabilities)
+        actions = (try? container.decode([ApprovalRequestedAction].self, forKey: .actions)) ?? []
+        sessionId = try? container.decode(String.self, forKey: .sessionId)
+    }
+}
+
+struct ApprovalSource: Decodable {
+    let kind: String?
+    let trust: String?
+    let publisher: String?
+    let domain: String?
+}
+
+struct ApprovalPermission: Decodable {
+    let kind: String?
+    let scope: String?
+    let access: String?
+}
+
+struct ApprovalRequestedAction: Decodable {
+    let id: String
+    let tool: String
+    let reason: String?
+}
+
+struct ApprovalDecisionResponse: Decodable {
+    let execution: ApprovalExecutionSummary?
+    let copiedToClipboard: Bool?
+
+    init(execution: ApprovalExecutionSummary? = nil, copiedToClipboard: Bool? = nil) {
+        self.execution = execution
+        self.copiedToClipboard = copiedToClipboard
+    }
+
+    var statusMessage: String {
+        if let runId = execution?.runId, copiedToClipboard == true {
+            return "Run \(runId) completed and the result was copied to the clipboard."
+        }
+        if let runId = execution?.runId {
+            return "Run \(runId) completed."
+        }
+        return "The approval decision was recorded."
+    }
+}
+
+struct ApprovalExecutionSummary: Decodable {
+    let runId: String?
 }
 
 struct ControlStatusResponse: Decodable {
@@ -1048,6 +1520,30 @@ struct UpdateCheckResult {
     let manifest: UpdateManifest
     let artifact: UpdateArtifact?
     let verifiedPublisher: String?
+
+    static func localPreviewMissingPinnedKey() -> UpdateCheckResult {
+        UpdateCheckResult(
+            isUpdateAvailable: false,
+            message: [
+                "This local Conduit build cannot verify signed O&K release manifests because it was built without the pinned release public key.",
+                "",
+                "That is normal for a local preview/dev build. Updates remain disabled here instead of installing anything unverifiable. Use a signed release build, or rebuild with CONDUIT_OK_PUBLISHER_PUBLIC_KEY_PEM, to enable update checks."
+            ].joined(separator: "\n"),
+            manifest: UpdateManifest(
+                schema: "conduit.update-manifest.v1",
+                appId: "conduit",
+                publisherId: "owl-kestrel",
+                publisherDomain: "owlandkestrel.com",
+                version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.1",
+                channel: "local-preview",
+                releaseNotes: nil,
+                publishedAt: nil,
+                artifacts: []
+            ),
+            artifact: nil,
+            verifiedPublisher: nil
+        )
+    }
 }
 
 struct SignedManifestEnvelope: Decodable {

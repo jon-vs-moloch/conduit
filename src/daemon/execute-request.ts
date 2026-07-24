@@ -258,6 +258,8 @@ async function createUntrustedRequestReview(request: ActionRequestBlock, policyR
       tool: 'conduit.review',
       args: {
         source: request.source ?? null,
+        title: request.title ?? null,
+        description: request.description ?? null,
         permissions: request.permissions ?? [],
         requestedCapabilities: request.requestedCapabilities ?? [],
         actions: request.actions,
