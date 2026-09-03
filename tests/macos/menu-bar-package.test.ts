@@ -151,6 +151,48 @@ describe('macOS menu-bar package scaffold', () => {
     expect(manifest.artifacts[0].url).toContain('Conduit.dmg');
   });
 
+  it('validates Conduit manifests against Hatch product-update contracts', async () => {
+    const { parseProductUpdateManifest } = await import('@owl-kestrel/hatch-contracts');
+    const text = await readText('website/releases/conduit-appcast.json');
+    const manifest = JSON.parse(text);
+
+    const hatchManifest = {
+      schema: 'ok.product-update.v1',
+      appId: manifest.appId,
+      bundleId: 'com.owlandkestrel.conduit',
+      version: manifest.version,
+      build: 1,
+      channel: manifest.channel,
+      publishedAt: manifest.publishedAt || new Date().toISOString(),
+      downloadPageUrl: 'https://owlandkestrel.com/apps/conduit',
+      updateFeed: {
+        format: 'conduit.appcast.v1',
+        url: 'https://updates.owlandkestrel.com/conduit/stable/appcast.json',
+        sha256: '0'.repeat(64)
+      },
+      source: {
+        repository: 'https://github.com/jon-vs-moloch/conduit.git',
+        commit: '0'.repeat(40),
+        dirty: false,
+        buildConfiguration: 'release'
+      },
+      artifacts: [
+        {
+          platform: 'macos',
+          kind: 'archive' as const,
+          url: manifest.artifacts[0].url,
+          sha256: 'a'.repeat(64),
+          sizeBytes: 1024
+        }
+      ]
+    };
+
+    const parsed = parseProductUpdateManifest(hatchManifest);
+    expect(parsed.appId).toBe('conduit');
+    expect(parsed.version).toBe('0.0.1');
+    expect(parsed.artifacts[0].platform).toBe('macos');
+  });
+
   it('loads the extension on ChatGPT origins and permits localhost bridge access', async () => {
     const manifest = JSON.parse(await readText('extension/manifest.json'));
     expect(manifest.host_permissions).toEqual(expect.arrayContaining([

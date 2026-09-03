@@ -1609,7 +1609,7 @@ final class UpdateChecker {
     func check() async throws -> UpdateCheckResult {
         let loaded = try await loadManifest()
         let manifest = loaded.manifest
-        let artifact = manifest.artifacts.first { $0.platform == "macos-universal" || $0.platform == "macos-arm64" }
+        let artifact = manifest.artifacts.first { $0.platform == "macos-universal" || $0.platform == "macos-arm64" || $0.platform == "macos" }
         let updateAvailable = compareVersions(manifest.version, currentVersion) == .orderedDescending
         let signatureState = loaded.verifiedPublisher.map { "Verified publisher: \($0)." } ?? "Unsigned local preview manifest."
         let notes = manifest.releaseNotes ?? "No release notes."
